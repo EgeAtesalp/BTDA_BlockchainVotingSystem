@@ -1,0 +1,19 @@
+{
+  "name": "blockchain-score-voting",
+  "version": "1.0.0",
+  "description": "Blockchain-based score voting system for country-wide elections",
+  "main": "index.js",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy": "npx hardhat run scripts/deploy.js --network localhost",
+    "simulate": "npx hardhat run scripts/simulate-election.js --network localhost",
+    "simulate-robust": "npx hardhat run scripts/robust-simulate.js --network localhost",
+    "working-simulate": "npx hardhat run scripts/working-simulate.js --network localhost",
+    "node": "npx hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.17.0"
+  }
+}
