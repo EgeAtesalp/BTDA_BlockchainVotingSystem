@@ -118,16 +118,15 @@ contract ElectionOrchestrator is IElectionOrchestrator {
         require(bytes(_name).length > 0, "Candidate name cannot be empty");
         require(candidates.length < maxCandidates, "Maximum candidates reached");
         
-        uint256 newId = candidates.length;
         candidates.push(Candidate({
-            id: newId,
+            id: candidates.length,  // This should be the correct ID
             name: _name,
             party: _party,
             totalScore: 0,
             totalVotes: 0
         }));
         
-        emit CandidateAdded(newId, _name, _party);
+        emit CandidateAdded(candidates.length - 1, _name, _party);
     }
     
     /**
@@ -465,6 +464,14 @@ contract ElectionOrchestrator is IElectionOrchestrator {
      */
     function getElectionMetrics() external view returns (ElectionMetrics memory) {
         return metrics;
+    }
+    
+    /**
+     * @dev Get the number of candidates (for debugging)
+     * @return Number of candidates
+     */
+    function getCandidateCount() external view returns (uint256) {
+        return candidates.length;
     }
     
     /**
