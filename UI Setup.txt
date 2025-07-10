@@ -1,0 +1,15 @@
+# Install Node.js packages
+npm install
+
+# Install Python packages  
+pip install -r requirements.txt
+
+npx hardhat compile
+
+npx hardhat node
+
+Terminal 2 - API Server:
+python -m uvicorn server:app --reload
+
+Open browser to:
+http://127.0.0.1:8000
