@@ -9,8 +9,6 @@ import random
 import csv
 import time
 
-VOTERS_PER_DISTRICT = 500
-
 
 def generate_scores(strategy, score_range_min, score_range_max, candidates):
     strategy_fn = voting_strategies.get(strategy)
@@ -128,7 +126,7 @@ def generate_candidates(number_of_candidates: int) -> list[dict]:
     return random.sample(records, number_of_candidates)
 
 
-def track_gas(w3, tx_hash, gas_tracker):  # TODO Make sure that it is applied in every appropriate scenario
+def track_gas(w3, tx_hash, gas_tracker):
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     gas_used = receipt.gasUsed
     gas_price = receipt.effectiveGasPrice
@@ -143,7 +141,7 @@ def distribute_strategies_to_voters(district_voters, voting_strategies_config):
     strategies = list(strategies)
     weights = list(weights)
 
-    # Normalise if weights don’t sum to 1.0
+    # Normalise if weights don't sum to 1.0
     total_w = sum(weights)
     weights = [w / total_w for w in weights]
 
@@ -170,7 +168,7 @@ def distribute_strategies_to_voters(district_voters, voting_strategies_config):
     return strategy_pool
 
 
-def register_district_sync(district, orchestrator_contract, voting_strategies_config):
+def register_district_sync(district, orchestrator_contract, voting_strategies_config, gas_tracker):
     print(f"   Registering {len(district['voters'])} voters in {district['name']}...")
 
     if len(district['voters']) == 0:
@@ -182,13 +180,13 @@ def register_district_sync(district, orchestrator_contract, voting_strategies_co
             "skipped": True
         }
 
-    voter_addresses = [v for v in district["voters"]]
+    voter_addresses = district["voters"]  
 
     try:
         tx_hash = orchestrator_contract.functions.batchRegisterVoters(
             district["id"], voter_addresses
         ).transact({'from': orchestrator_contract.w3.eth.default_account})
-        receipt = orchestrator_contract.w3.eth.wait_for_transaction_receipt(tx_hash)
+        receipt = track_gas(orchestrator_contract.w3, tx_hash, gas_tracker)
         print(f"   {district['name']} registration transaction: {receipt.transactionHash.hex()}")
 
         district["strategies"] = distribute_strategies_to_voters(district["voters"], voting_strategies_config)
@@ -208,11 +206,11 @@ def register_district_sync(district, orchestrator_contract, voting_strategies_co
         }
 
 
-async def register_voters_parallel(districts, orchestrator_contract, voting_strategies_config):
+async def register_voters_parallel(districts, orchestrator_contract, voting_strategies_config, gas_tracker):
     loop = asyncio.get_running_loop()
     with ThreadPoolExecutor() as pool:
         tasks = [
-            loop.run_in_executor(pool, register_district_sync, district, orchestrator_contract, voting_strategies_config)
+            loop.run_in_executor(pool, register_district_sync, district, orchestrator_contract, voting_strategies_config, gas_tracker)
             for district in districts
         ]
         print("⏳ Starting parallel registration...")
@@ -245,10 +243,10 @@ def check_registration_results(registration_results, orchestrator_contract, dist
     )
 
 
-def cast_vote_sync(contract, voter_account, scores, voter_index, district_id):
+def cast_vote_sync(contract, voter_account, scores, voter_index, district_id, gas_tracker):
     try:
         tx_hash = contract.functions.castVote(scores).transact({'from': voter_account})
-        receipt = Web3.eth.wait_for_transaction_receipt(tx_hash)
+        receipt = track_gas(contract.w3, tx_hash, gas_tracker)
 
         if voter_index % 5 == 0:
             print(f"     📊 District {district_id}: {voter_index + 1} votes cast")
@@ -259,10 +257,11 @@ def cast_vote_sync(contract, voter_account, scores, voter_index, district_id):
         return {'district': district_id, 'voter': voter_index, 'success': False, 'error': str(e)}
 
 
-async def cast_votes_for_district(district, strategy, score_range_min, score_range_max, candidates, executor):
+async def cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker):
     district_id = district["id"]
     voters = district["voters"]
     contract = district["contract"]
+    strategies = district["strategies"]
     print(f"   🗳️ District {district_id}: Starting {len(voters)} parallel votes...")
 
     loop = asyncio.get_event_loop()
@@ -272,12 +271,13 @@ async def cast_votes_for_district(district, strategy, score_range_min, score_ran
             executor,
             cast_vote_sync,
             contract,
-            voter["address"],
-            generate_scores(strategy[i], score_range_min, score_range_max, candidates),
+            voters[i],  # voters[i] is already an address
+            generate_scores(strategies[i], score_range_min, score_range_max, candidates),
             i,
-            district_id
+            district_id,
+            gas_tracker
         )
-        for i, voter in enumerate(voters)
+        for i in range(len(voters))
     ]
 
     results = await asyncio.gather(*vote_tasks)
@@ -293,15 +293,43 @@ async def cast_votes_for_district(district, strategy, score_range_min, score_ran
     }
 
 
-async def run_parallel_voting(districts, voting_strategies, score_range_min, score_range_max, candidates):
+async def run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker):
     executor = ThreadPoolExecutor()
     voting_tasks = [
-        cast_votes_for_district(district, voting_strategies[district["id"]],
-                                score_range_min, score_range_max, candidates, executor)
+        cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker)
         for district in districts
     ]
     all_results = await asyncio.gather(*voting_tasks)
     return all_results
+
+
+def calculate_voters_per_district(number_of_voters, number_of_districts):
+    if number_of_districts > number_of_voters:
+        raise ValueError("Number of districts must be larger or equal to the number of voters")
+
+    if number_of_districts <= 0:
+        raise ValueError("Number of districts must be positive")
+
+    if number_of_voters < 0:
+        raise ValueError("Number of voters cannot be negative")
+
+    # Base number of voters per district
+    base_voters_per_district = number_of_voters // number_of_districts
+
+    # Number of districts that will get one extra voter
+    extra_voters = number_of_voters % number_of_districts
+
+    # Create list of voter counts per district
+    voters_per_district_list = []
+    for district in range(number_of_districts):
+        if district < extra_voters:
+            # First 'extra_voters' districts get one additional voter
+            voters_per_district_list.append(base_voters_per_district + 1)
+        else:
+            # Remaining districts get the base amount
+            voters_per_district_list.append(base_voters_per_district)
+
+    return voters_per_district_list
 
 
 async def run_election(config: InputConfiguration):
@@ -339,14 +367,16 @@ async def run_election(config: InputConfiguration):
     score_range_min = config.score_range_min
     score_range_max = config.score_range_max
 
+    voters_per_district_list = calculate_voters_per_district(number_of_voters, number_of_districts)
+
     admin = w3.eth.accounts[0]
     # Accounts
     if len(w3.eth.accounts) < number_of_voters:
-        voters = [w3.eth.account.create() for _ in range(number_of_voters)]
+        voter_accounts = [w3.eth.account.create() for _ in range(number_of_voters)]
         amount_wei = w3.to_wei(100, "ether")
 
         # Fund each new account from the funder
-        for voter in voters:
+        for voter in voter_accounts:
             tx_dict: TxParams = {
                 'from': admin,
                 'to': voter.address,
@@ -357,10 +387,11 @@ async def run_election(config: InputConfiguration):
             }
 
             tx_hash = w3.eth.send_transaction(tx_dict)
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            receipt = track_gas(w3, tx_hash, gas_tracker)
+        voters = [voter.address for voter in voter_accounts]
     else:
         accounts = w3.eth.accounts
-        voters = accounts[1:number_of_voters+1]
+        voters = accounts[1:number_of_voters+1]  # Skip the admin account
 
     # --- Add candidates ---
     for candidate in candidates:
@@ -385,8 +416,8 @@ async def run_election(config: InputConfiguration):
         # Create contract instance at the district address
         district_contract = w3.eth.contract(address=district_address, abi=district_abi)
 
-        start_index = district * VOTERS_PER_DISTRICT
-        end_index = start_index + VOTERS_PER_DISTRICT
+        start_index = sum(voters_per_district_list[:district])
+        end_index = start_index + voters_per_district_list[district]
         district_voters = voters[start_index:end_index]
 
         districts.append({
@@ -410,7 +441,7 @@ async def run_election(config: InputConfiguration):
     receipt = track_gas(w3, tx, gas_tracker)
     strategies_config = config.voting_strategies.model_dump()
 
-    registration_results = await register_voters_parallel(districts, orchestrator_contract, strategies_config)
+    registration_results = await register_voters_parallel(districts, orchestrator_contract, strategies_config, gas_tracker)
     check_registration_results(registration_results, orchestrator_contract, district_count)
 
     # --- Start voting phase ---
@@ -420,9 +451,7 @@ async def run_election(config: InputConfiguration):
 
     # --- Cast votes ---
     start = time.time()
-    loop = asyncio.get_event_loop()
-    voting_results = loop.run_until_complete(run_parallel_voting(
-        districts, voting_strategies, score_range_min, score_range_max, candidates))
+    voting_results = await run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker)
 
     end = time.time()
 
@@ -435,18 +464,39 @@ async def run_election(config: InputConfiguration):
     tx = orchestrator_contract.functions.collectResults().transact({'from': admin})
     receipt = track_gas(w3, tx, gas_tracker)
 
-    # --- Fetch and display results ---
-    results = orchestrator_contract.functions.getResults().call()
-    print(results)
-    total_scores = results[1]
-    vote_counts = results[2]
+    results = orchestrator_contract.functions.getElectionResults().call()
 
-    # Zip candidates with their results
-    combined = list(zip(candidates, total_scores, vote_counts))
-    # Sort by total score (index 1) in descending order
-    combined.sort(key=lambda x: x[1], reverse=True)
+    # --- Fetch and display results ---
+    names, parties, total_scores, vote_counts = results
 
     print("\n🏁 Election Results:")
+    # Create a list of tuples combining candidate data with results
+    combined = []
+    for i, (name, party, total_score, votes) in enumerate(zip(names, parties, total_scores, vote_counts)):
+        # Find the original candidate data
+        original_candidate = None
+        for candidate in candidates:
+            if candidate['name'] == name and candidate['party'] == party:
+                original_candidate = candidate
+                break
+
+        if original_candidate:
+            combined.append((original_candidate, total_score, votes))
+        else:
+            # Fallback if candidate not found
+            fallback_candidate = {
+                "name": name,
+                "party": party,
+                "political_position": "Unknown",
+                "age": "Unknown",
+                "gender": "Unknown",
+                "experience": "Unknown"
+            }
+            combined.append((fallback_candidate, total_score, votes))
+
+    # Sort by total score in descending order
+    combined.sort(key=lambda x: x[1], reverse=True)
+
     formatted_results = []
     for candidate, total, votes in combined:
         avg = total / votes if votes > 0 else 0
@@ -461,22 +511,48 @@ async def run_election(config: InputConfiguration):
         print(f"  Votes: {votes}")
         print(f"  Avg Score: {avg:.2f}")
 
+    # Get winner information
+    winner_info = orchestrator_contract.functions.getWinner().call()
+    winner_id, winner_name, winner_party, winner_score = winner_info
+    print(f"\n🏆 Winner: {winner_name} ({winner_party}) with {winner_score} total points")
+
+    # Get election statistics
+    stats = orchestrator_contract.functions.getElectionStats().call()
+    total_districts, total_voters_registered, total_votes_cast, results_submitted, state_num, turnout = stats
+
+    print("\n📊 Election Statistics:")
+    print(f"   Total Districts: {total_districts}")
+    print(f"   Voters Registered: {total_voters_registered}")
+    print(f"   Votes Cast: {total_votes_cast}")
+    print(f"   Results Submitted: {results_submitted}")
+    print(f"   Turnout: {turnout}%")
+
     metrics = {
         "voting_duration_secs": round(end - start, 2),
         "total_gas_used": gas_tracker["gas"],
-        "total_eth_spent": gas_tracker["eth"],
-        "gas_per_voter": gas_tracker["gas"] // number_of_voters,
-        "gas_per_candidate": gas_tracker["gas"] // candidate_count
+        "total_eth_spent": float(gas_tracker["eth"]),
+        "gas_per_voter": gas_tracker["gas"] // number_of_voters if number_of_voters > 0 else 0,
+        "gas_per_candidate": gas_tracker["gas"] // len(candidates) if len(candidates) > 0 else 0,
+        "turnout_percentage": turnout,
+        "total_districts": total_districts,
+        "total_voters_registered": total_voters_registered,
+        "total_votes_cast": total_votes_cast
     }
 
     response = {
         "election_results": formatted_results,
-        "metrics": metrics
+        "metrics": metrics,
+        "winner": {
+            "name": winner_name if 'winner_name' else "Unknown",
+            "party": winner_party if 'winner_party' else "Unknown",
+            "total_score": winner_score if 'winner_score' else 0
+        }
     }
+
     return response
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     with open("request.json", "r") as file:
         data = json.load(file)
     config = InputConfiguration(**data)

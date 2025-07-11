@@ -1,6 +1,6 @@
 {
     "number_of_voters": 50,
-    "number_of_districts": 5,
+    "number_of_districts": 2,
     "number_of_candidates": 10,
     "score_range_min": 0,
     "score_range_max": 10,

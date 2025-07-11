@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from models import InputConfiguration
 from simulation import run_election
@@ -17,8 +16,8 @@ app.add_middleware(
 )
 
 @app.post("/election")
-def add_configuration(config: InputConfiguration):
-    return run_election(config)
+async def add_configuration(config: InputConfiguration):
+    return await run_election(config)
 
 @app.get("/")
 def read_root():
