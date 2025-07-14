@@ -4,12 +4,11 @@ const { ethers } = require("hardhat");
 describe("Parallel Voting System Test", function () {
     
     it("Should handle massive parallel voting across districts", async function () {
-        this.timeout(300000); // 5 minutes timeout for parallel voting
         
         console.log("🚀 PARALLEL VOTING TEST: Thousands of voters voting simultaneously");
         console.log("=".repeat(80));
         
-        // Get signers - we'll use the first 100 signers as voters
+        //
         const signers = await ethers.getSigners();
         const admin = signers[0];
         const votersPool = signers.slice(1, 3001); // 150 voters
