@@ -51,8 +51,11 @@ def score_random(score_range_min, score_range_max, candidate_count, candidates):
 def score_strategic_undervoting(score_range_min, score_range_max, candidate_count, candidates):
     # Assigns the maximum score to one randomly chosen favorite candidate and a low score to all others.
     fav = random.randrange(candidate_count)
-    low = max(score_range_min, score_range_max - 3)
-    return [score_range_max if i == fav else low for i in range(candidate_count)]
+    # Calculate a "low" score that's still within the valid range
+    low_score = min(score_range_min + 1, score_range_max - 2)  # Ensure it's above minimum but still low
+    if low_score < score_range_min:
+        low_score = score_range_min
+    return [score_range_max if i == fav else low_score for i in range(candidate_count)]
 
 
 @register_strategy("bullet")
@@ -97,20 +100,25 @@ def score_biased_towards_experienced_candidates(score_range_min, score_range_max
         exp = int(candidate["experience"])
         # Normalize experience to range
         score = score_range_min + (exp / max_exp) * (score_range_max - score_range_min)
-        scores.append(round(score))
+        scores.append(max(score_range_min, min(score_range_max, round(score))))
     return scores
 
 
 @register_strategy("biased_towards_young_candidates")
 def score_biased_towards_young_candidates(score_range_min, score_range_max, candidate_count, candidates):
     # Favors younger candidates by assigning higher scores to lower ages, normalized to the score range.
+    # Favors younger candidates by assigning higher scores to lower ages, normalized to the score range.
     max_age = max(int(candidate["age"]) for candidate in candidates)
+    min_age = min(int(candidate["age"]) for candidate in candidates)
     scores = []
     for candidate in candidates:
         age = int(candidate["age"])
-        # Younger -> higher score
-        score = score_range_min + ((max_age - age) / max_age) * (score_range_max - score_range_min)
-        scores.append(round(score))
+        # Younger -> higher score (invert the age)
+        if max_age == min_age:  # Handle edge case where all candidates are same age
+            score = score_range_max
+        else:
+            score = score_range_min + ((max_age - age) / (max_age - min_age)) * (score_range_max - score_range_min)
+        scores.append(max(score_range_min, min(score_range_max, round(score))))  # Ensure within bounds
     return scores
 
 
