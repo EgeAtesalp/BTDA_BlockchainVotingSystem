@@ -59,7 +59,7 @@ def score_strategic_undervoting(score_range_min, score_range_max, candidate_coun
 def score_bullet(score_range_min, score_range_max, candidate_count, candidates):
     # Assigns a score of 10 to one favorite candidate and 0 to all others — classic bullet voting.
     fav = random.randrange(candidate_count)
-    return [10 if i == fav else 0 for i in range(candidate_count)]
+    return [score_range_max if i == fav else score_range_min for i in range(candidate_count)]
 
 
 @register_strategy("biased_towards_left_wing_candidates")
@@ -151,19 +151,12 @@ def distribute_strategies_to_voters(district_voters, voting_strategies_config):
 
     # 2) Distribute the leftover seats to the largest remainders
     leftover = len(district_voters) - sum(counts)
-    remainders = sorted(
-        ((raw[i] - counts[i], i) for i in range(len(strategies))),
-        reverse=True
-    )
+    remainders = sorted(((raw[i] - counts[i], i) for i in range(len(strategies))), reverse=True)
     for _, idx in remainders[:leftover]:
         counts[idx] += 1
 
     # 3) Build a deterministic pool of strategies
-    strategy_pool = [
-        strategy
-        for strategy, cnt in zip(strategies, counts)
-        for _ in range(cnt)
-    ]
+    strategy_pool = [strategy for strategy, cnt in zip(strategies, counts) for _ in range(cnt)]
 
     return strategy_pool
 
@@ -180,12 +173,11 @@ def register_district_sync(district, orchestrator_contract, voting_strategies_co
             "skipped": True
         }
 
-    voter_addresses = district["voters"]  
+    voter_addresses = district["voters"]
 
     try:
-        tx_hash = orchestrator_contract.functions.batchRegisterVoters(
-            district["id"], voter_addresses
-        ).transact({'from': orchestrator_contract.w3.eth.default_account})
+        tx_hash = orchestrator_contract.functions.batchRegisterVoters(district["id"], voter_addresses).transact({
+            'from': orchestrator_contract.w3.eth.default_account})
         receipt = track_gas(orchestrator_contract.w3, tx_hash, gas_tracker)
         print(f"   {district['name']} registration transaction: {receipt.transactionHash.hex()}")
 
@@ -210,7 +202,8 @@ async def register_voters_parallel(districts, orchestrator_contract, voting_stra
     loop = asyncio.get_running_loop()
     with ThreadPoolExecutor() as pool:
         tasks = [
-            loop.run_in_executor(pool, register_district_sync, district, orchestrator_contract, voting_strategies_config, gas_tracker)
+            loop.run_in_executor(pool, register_district_sync, district,
+                                 orchestrator_contract, voting_strategies_config, gas_tracker)
             for district in districts
         ]
         print("⏳ Starting parallel registration...")
