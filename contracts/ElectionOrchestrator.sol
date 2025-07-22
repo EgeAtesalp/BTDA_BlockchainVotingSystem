@@ -7,7 +7,7 @@ import "./interfaces/IElectionOrchestrator.sol";
 
 /**
  * @title ElectionOrchestrator
- * @dev Main contract that orchestrates the entire distributed election system
+ * @dev Main contract that orchestrates the entire distributed election system with customizable grading scales
  */
 contract ElectionOrchestrator is IElectionOrchestrator {
     address public admin;
@@ -41,15 +41,26 @@ contract ElectionOrchestrator is IElectionOrchestrator {
         uint256 electionEndTime;
     }
     
+    struct GradingScale {
+        uint256 minScore;
+        uint256 maxScore;
+        bool isCustom;
+    }
+    
     Candidate[] public candidates;
     mapping(uint256 => DistrictResult) public districtResults; // districtId => results
     uint256[] public activeDistricts;
     ElectionMetrics public metrics;
+    GradingScale public gradingScale;
     
     // Election configuration
     uint256 public maxCandidates = 50;
     uint256 public maxDistricts = 1000;
     bool public emergencyStop = false;
+    
+    // Default grading scale constants
+    uint256 public constant DEFAULT_MIN_SCORE = 0;
+    uint256 public constant DEFAULT_MAX_SCORE = 10;
     
     // Events
     event CandidateAdded(uint256 indexed candidateId, string name, string party);
@@ -67,6 +78,7 @@ contract ElectionOrchestrator is IElectionOrchestrator {
     );
     event ElectionStateChanged(ElectionState indexed newState, uint256 timestamp);
     event EmergencyStopToggled(bool stopped, address by);
+    event GradingScaleSet(uint256 minScore, uint256 maxScore, bool isCustom);
     
     // Modifiers
     modifier onlyAdmin() {
@@ -95,13 +107,75 @@ contract ElectionOrchestrator is IElectionOrchestrator {
     }
     
     /**
-     * @dev Constructor - deploys the factory and initializes the election
+     * @dev Constructor - deploys the factory and initializes the election with default grading scale
      */
     constructor() {
         admin = msg.sender;
         factory = new DistrictFactory(address(this));
         state = ElectionState.Setup;
         metrics.electionStartTime = block.timestamp;
+        
+        // Initialize with default grading scale (0-10)
+        gradingScale = GradingScale({
+            minScore: DEFAULT_MIN_SCORE,
+            maxScore: DEFAULT_MAX_SCORE,
+            isCustom: false
+        });
+    }
+    
+    /**
+     * @dev Set custom grading scale (only during setup phase)
+     * @param _minScore Minimum score value
+     * @param _maxScore Maximum score value
+     */
+    function setGradingScale(uint256 _minScore, uint256 _maxScore) 
+        external 
+        onlyAdmin 
+        inState(ElectionState.Setup)
+        notEmergencyStopped
+    {
+        require(_maxScore > _minScore, "Max score must be greater than min score");
+        require(_maxScore - _minScore <= 100, "Score range too large (max 100 points)");
+        
+        gradingScale = GradingScale({
+            minScore: _minScore,
+            maxScore: _maxScore,
+            isCustom: true
+        });
+        
+        emit GradingScaleSet(_minScore, _maxScore, true);
+    }
+    
+    /**
+     * @dev Reset to default grading scale (0-10)
+     */
+    function resetToDefaultGradingScale() 
+        external 
+        onlyAdmin 
+        inState(ElectionState.Setup)
+        notEmergencyStopped
+    {
+        gradingScale = GradingScale({
+            minScore: DEFAULT_MIN_SCORE,
+            maxScore: DEFAULT_MAX_SCORE,
+            isCustom: false
+        });
+        
+        emit GradingScaleSet(DEFAULT_MIN_SCORE, DEFAULT_MAX_SCORE, false);
+    }
+    
+    /**
+     * @dev Get current grading scale information
+     * @return minScore Minimum allowed score
+     * @return maxScore Maximum allowed score
+     * @return isCustom Whether a custom scale is being used
+     */
+    function getGradingScale() external view returns (
+        uint256 minScore,
+        uint256 maxScore,
+        bool isCustom
+    ) {
+        return (gradingScale.minScore, gradingScale.maxScore, gradingScale.isCustom);
     }
     
     /**
@@ -119,7 +193,7 @@ contract ElectionOrchestrator is IElectionOrchestrator {
         require(candidates.length < maxCandidates, "Maximum candidates reached");
         
         candidates.push(Candidate({
-            id: candidates.length,  // This should be the correct ID
+            id: candidates.length,
             name: _name,
             party: _party,
             totalScore: 0,
@@ -130,7 +204,7 @@ contract ElectionOrchestrator is IElectionOrchestrator {
     }
     
     /**
-     * @dev Create a new voting district
+     * @dev Create a new voting district with current grading scale
      * @param _name District name
      * @return Address of the created district contract
      */
@@ -145,8 +219,14 @@ contract ElectionOrchestrator is IElectionOrchestrator {
         require(candidates.length > 0, "Must add candidates before creating districts");
         require(activeDistricts.length < maxDistricts, "Maximum districts reached");
         
-        uint256 districtId = metrics.totalDistrictsCreated; // Use metrics instead of activeDistricts.length
-        address districtAddress = factory.createDistrict(_name, districtId, candidates.length);
+        uint256 districtId = metrics.totalDistrictsCreated;
+        address districtAddress = factory.createDistrict(
+            _name, 
+            districtId, 
+            candidates.length,
+            gradingScale.minScore,
+            gradingScale.maxScore
+        );
         activeDistricts.push(districtId);
         
         metrics.totalDistrictsCreated++;
@@ -323,6 +403,12 @@ contract ElectionOrchestrator is IElectionOrchestrator {
         emit ElectionStateChanged(state, block.timestamp);
     }
     
+    // [Rest of the functions remain the same as in the original contract]
+    // Including: getElectionResults, getWinner, getDistrictResults, getDistrictAddress,
+    // getElectionStats, getElectionMetrics, getCandidateCount, getCandidate,
+    // getAllCandidates, getBatchDistrictStatus, setEmergencyStop, updateLimits,
+    // transferAdmin, getFactoryAddress, isVotingActive, areResultsFinalized, getElectionDuration
+    
     /**
      * @dev Get comprehensive election results
      * @return names Array of candidate names
@@ -449,7 +535,7 @@ contract ElectionOrchestrator is IElectionOrchestrator {
             (metrics.totalVotesCast * 100) / metrics.totalVotersRegistered : 0;
             
         return (
-            metrics.totalDistrictsCreated,  // Use metrics instead of activeDistricts.length
+            metrics.totalDistrictsCreated,
             metrics.totalVotersRegistered,
             metrics.totalVotesCast,
             metrics.resultsSubmittedCount,

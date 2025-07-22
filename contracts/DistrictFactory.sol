@@ -5,7 +5,7 @@ import "./DistrictVoting.sol";
 
 /**
  * @title DistrictFactory
- * @dev Factory contract for creating and managing district voting contracts
+ * @dev Factory contract for creating and managing district voting contracts with customizable grading scales
  */
 contract DistrictFactory {
     address public orchestrator;
@@ -21,7 +21,9 @@ contract DistrictFactory {
         uint256 indexed districtId, 
         address indexed contractAddress, 
         string name,
-        uint256 candidateCount
+        uint256 candidateCount,
+        uint256 minScore,
+        uint256 maxScore
     );
     event DistrictStatusUpdated(uint256 indexed districtId, bool isActive);
     
@@ -48,28 +50,35 @@ contract DistrictFactory {
     }
     
     /**
-     * @dev Create a new district voting contract
+     * @dev Create a new district voting contract with custom grading scale
      * @param _name Human-readable name for the district
      * @param _districtId Unique identifier for the district
      * @param _candidateCount Number of candidates in the election
+     * @param _minScore Minimum score for the grading scale
+     * @param _maxScore Maximum score for the grading scale
      * @return Address of the newly created district contract
      */
     function createDistrict(
         string memory _name,
         uint256 _districtId,
-        uint256 _candidateCount
+        uint256 _candidateCount,
+        uint256 _minScore,
+        uint256 _maxScore
     ) external onlyOrchestrator returns (address) {
         require(bytes(_name).length > 0, "District name cannot be empty");
         require(_candidateCount > 0, "Must have at least one candidate");
         require(districtById[_districtId] == address(0), "District ID already exists");
+        require(_maxScore > _minScore, "Max score must be greater than min score");
         
-        // Create new district contract
+        // Create new district contract with custom grading scale
         DistrictVoting newDistrict = new DistrictVoting(
             orchestrator,
             address(this),
             _name,
             _districtId,
-            _candidateCount
+            _candidateCount,
+            _minScore,
+            _maxScore
         );
         
         address districtAddress = address(newDistrict);
@@ -82,9 +91,26 @@ contract DistrictFactory {
         
         totalDistrictsCreated++;
         
-        emit DistrictCreated(_districtId, districtAddress, _name, _candidateCount);
+        emit DistrictCreated(_districtId, districtAddress, _name, _candidateCount, _minScore, _maxScore);
         
         return districtAddress;
+    }
+    
+    /**
+     * @dev Overloaded function to create district with default grading scale (0-10)
+     * This maintains backward compatibility for existing scripts
+     * @param _name Human-readable name for the district
+     * @param _districtId Unique identifier for the district
+     * @param _candidateCount Number of candidates in the election
+     * @return Address of the newly created district contract
+     */
+    function createDistrict(
+        string memory _name,
+        uint256 _districtId,
+        uint256 _candidateCount
+    ) external onlyOrchestrator returns (address) {
+        // Call the main function with default grading scale (0-10)
+        return this.createDistrict(_name, _districtId, _candidateCount, 0, 10);
     }
     
     /**
@@ -128,11 +154,13 @@ contract DistrictFactory {
     }
     
     /**
-     * @dev Get district information by ID
+     * @dev Get district information by ID including grading scale
      * @param _districtId The district ID
      * @return districtAddress Address of the district contract
      * @return districtName Name of the district
      * @return isActive Whether the district is active
+     * @return minScore Minimum score for the district
+     * @return maxScore Maximum score for the district
      */
     function getDistrictInfo(uint256 _districtId) 
         external 
@@ -141,7 +169,9 @@ contract DistrictFactory {
         returns (
             address districtAddress,
             string memory districtName,
-            bool isActive
+            bool isActive,
+            uint256 minScore,
+            uint256 maxScore
         ) 
     {
         address addr = districtById[_districtId];
@@ -150,7 +180,9 @@ contract DistrictFactory {
         return (
             addr,
             district.districtName(),
-            isValidDistrict[addr]
+            isValidDistrict[addr],
+            district.MIN_SCORE(),
+            district.MAX_SCORE()
         );
     }
     
@@ -164,11 +196,13 @@ contract DistrictFactory {
     }
     
     /**
-     * @dev Get batch information about multiple districts
+     * @dev Get batch information about multiple districts including grading scales
      * @param _districtIds Array of district IDs to query
      * @return addresses Array of district contract addresses
      * @return names Array of district names
      * @return states Array of district voting states
+     * @return minScores Array of minimum scores for each district
+     * @return maxScores Array of maximum scores for each district
      */
     function getBatchDistrictInfo(uint256[] memory _districtIds) 
         external 
@@ -176,7 +210,9 @@ contract DistrictFactory {
         returns (
             address[] memory addresses,
             string[] memory names,
-            DistrictVoting.VotingState[] memory states
+            DistrictVoting.VotingState[] memory states,
+            uint256[] memory minScores,
+            uint256[] memory maxScores
         ) 
     {
         require(_districtIds.length > 0, "Empty district IDs array");
@@ -184,6 +220,8 @@ contract DistrictFactory {
         addresses = new address[](_districtIds.length);
         names = new string[](_districtIds.length);
         states = new DistrictVoting.VotingState[](_districtIds.length);
+        minScores = new uint256[](_districtIds.length);
+        maxScores = new uint256[](_districtIds.length);
         
         for (uint256 i = 0; i < _districtIds.length; i++) {
             require(_districtIds[i] < totalDistrictsCreated, "Invalid district ID in batch");
@@ -196,9 +234,37 @@ contract DistrictFactory {
             addresses[i] = addr;
             names[i] = district.districtName();
             states[i] = district.state();
+            minScores[i] = district.MIN_SCORE();
+            maxScores[i] = district.MAX_SCORE();
         }
         
-        return (addresses, names, states);
+        return (addresses, names, states, minScores, maxScores);
+    }
+    
+    /**
+     * @dev Get grading scale information for a specific district
+     * @param _districtId District ID to query
+     * @return minScore Minimum score for the district
+     * @return maxScore Maximum score for the district
+     * @return scoreRange Score range (maxScore - minScore)
+     */
+    function getDistrictGradingScale(uint256 _districtId) 
+        external 
+        view 
+        validDistrictId(_districtId)
+        returns (
+            uint256 minScore,
+            uint256 maxScore,
+            uint256 scoreRange
+        ) 
+    {
+        address addr = districtById[_districtId];
+        DistrictVoting district = DistrictVoting(addr);
+        
+        uint256 min = district.MIN_SCORE();
+        uint256 max = district.MAX_SCORE();
+        
+        return (min, max, max - min);
     }
     
     /**
