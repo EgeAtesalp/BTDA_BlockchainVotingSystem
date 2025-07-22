@@ -361,11 +361,12 @@ async def run_election(config: InputConfiguration):
     score_range_min = config.score_range_min
     score_range_max = config.score_range_max
 
-    voters_per_district_list = calculate_voters_per_district(number_of_voters, number_of_districts)
 
     # Accounts
     admin = w3.eth.accounts[0]
     voters = w3.eth.accounts[1:number_of_voters+1]
+
+    voters_per_district_list = calculate_voters_per_district(len(voters), number_of_districts)
 
     # --- Add candidates ---
     for candidate in candidates:
