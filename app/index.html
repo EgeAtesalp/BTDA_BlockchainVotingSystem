@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Voting System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            color: white;
+        }
+
+        /* Welcome Page */
+        .welcome-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #fff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .blockchain-icon {
+            width: 120px;
+            height: 120px;
+            margin: 2rem auto;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            margin-top: 2rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.6);
+        }
+
+        /* Parameters Page */
+        .param-title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.8rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .param-info {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border-left: 4px solid #667eea;
+        }
+
+        /* Loading Page */
+        .loading-spinner {
+            width: 100px;
+            height: 100px;
+            margin: 2rem auto;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .loading-steps {
+            text-align: left;
+            max-width: 400px;
+            margin: 2rem auto;
+        }
+
+        .loading-step {
+            padding: 0.8rem 0;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            padding-left: 1rem;
+        }
+
+        .loading-step.active {
+            opacity: 1;
+            border-left-color: #667eea;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* Results Page */
+        .results-title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: #ffeb3b;
+        }
+
+        .vote-bar {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .vote-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            height: 40px;
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            font-weight: 600;
+            transition: width 2s ease-out;
+        }
+
+        .candidate-list {
+            text-align: left;
+        }
+
+        .candidate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            margin-right: 1rem;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            margin-top: 2rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Chart Styles */
+        .chart-container {
+            margin-top: 1rem;
+        }
+
+        .chart-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+
+        .chart-label {
+            min-width: 90px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .chart-bar-bg {
+            flex: 1;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-bar-fill {
+            height: 100%;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 1rem;
+            transition: width 2s ease-out;
+            position: relative;
+        }
+
+        .chart-value {
+            color: white;
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-percentage {
+            min-width: 50px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Page 1: Welcome Screen -->
+        <div class="page active" id="page1">
+            <div class="card">
+                <div class="blockchain-icon">🗳️</div>
+                <h1 class="welcome-title">Blockchain-Based Voting System</h1>
+                <p class="welcome-subtitle">
+                    Decentralized and transparent, blockchain enables fair e-voting—especially through score voting, where candidates are ranked by total voter-assigned scores. Experience the future of democratic decision-making with blockchain technology.
+                </p>
+                <p style="opacity: 0.7; font-size: 0.9rem; margin-bottom: 2rem;">
+                    Project BTDA TU Berlin, Ege, Zach and Leon; Moderation: Arash Pourdamghani
+                </p>
+                <button class="btn" onclick="nextPage()">Get Started</button>
+            </div>
+        </div>
+
+        <!-- Page 2: Parameters Input -->
+        <div class="page" id="page2">
+            <div class="card">
+                <h2 class="param-title">Configure Voting Parameters</h2>
+                
+                <div class="param-info">
+                    <strong>📊 Score Voting System</strong><br>
+                    Voters will assign scores to each candidate. The candidate with the highest total score wins.
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Score Range</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="scoreMin" placeholder="Min" min="0" max="100" value="0" style="flex: 1;">
+                            <span style="color: rgba(255,255,255,0.7); font-weight: 500;">to</span>
+                            <input type="number" class="form-input" id="scoreMax" placeholder="Max" min="1" max="100" value="10" style="flex: 1;">
+                        </div>
+                        <small style="opacity: 0.7;">Minimum and maximum scores voters can assign</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Number of Voters</label>
+                        <input type="number" class="form-input" id="numVoters" placeholder="e.g., 100" min="1" value="100">
+                        <small style="opacity: 0.7;">Minimum: 1 voter</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Number of Candidates</label>
+                        <input type="number" class="form-input" id="numCandidates" placeholder="e.g., 2" min="2" max="20" value="2" onchange="updateCandidateInputs()">
+                        <small style="opacity: 0.7;">Range: 2-20</small>
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">Candidate Details (Optional)</label>
+                        <div id="candidateInputs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <!-- Candidate inputs will be generated here -->
+                        </div>
+                        <small style="opacity: 0.7;">Enter names and political positions, or leave blank to use random candidates from the database</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Number of Districts</label>
+                        <input type="number" class="form-input" id="numDistricts" placeholder="e.g., 10" min="1" max="100" value="10">
+                        <small style="opacity: 0.7;">Range: 1-100</small>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: rgba(255,255,255,0.9); margin-bottom: 1rem;">Voting Strategy Percentages</h3>
+                    <p style="opacity: 0.7; margin-bottom: 1rem;">Enter percentages for each voting behavior (must add up to 100%):</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label class="form-label">Random (%)</label>
+                            <input type="number" class="form-input" id="random" min="0" max="100" value="80">
+                        </div>
+                        <div>
+                            <label class="form-label">Polarized (%)</label>
+                            <input type="number" class="form-input" id="polarized" min="0" max="100" value="10">
+                        </div>
+                        <div>
+                            <label class="form-label">Strategic Undervoting (%)</label>
+                            <input type="number" class="form-input" id="strategic_undervoting" min="0" max="100" value="5">
+                        </div>
+                        <div>
+                            <label class="form-label">Bullet Voting (%)</label>
+                            <input type="number" class="form-input" id="bullet" min="0" max="100" value="5">
+                        </div>
+                        <div>
+                            <label class="form-label">Left-Wing Bias (%)</label>
+                            <input type="number" class="form-input" id="biased_towards_left_wing_candidates" min="0" max="100" value="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Right-Wing Bias (%)</label>
+                            <input type="number" class="form-input" id="biased_towards_right_wing_candidates" min="0" max="100" value="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Experience Bias (%)</label>
+                            <input type="number" class="form-input" id="biased_towards_experienced_candidates" min="0" max="100" value="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Youth Bias (%)</label>
+                            <input type="number" class="form-input" id="biased_towards_young_candidates" min="0" max="100" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+                <button class="btn" onclick="startSimulation()">Start Blockchain Simulation</button>
+            </div>
+        </div>
+
+        <!-- Page 3: Loading Screen -->
+        <div class="page" id="page3">
+            <div class="card">
+                <h2 class="loading-text">Initializing Blockchain Network</h2>
+                <div class="loading-spinner"></div>
+                
+                <div class="loading-steps">
+                    <div class="loading-step active" id="step1">🔧 Setting up Ethereum virtual network</div>
+                    <div class="loading-step" id="step2">📜 Deploying smart contracts</div>
+                    <div class="loading-step" id="step3">🤖 Creating virtual agents</div>
+                    <div class="loading-step" id="step4">🗳️ Running voting simulation</div>
+                    <div class="loading-step" id="step5">📊 Processing results</div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                
+                <p style="margin-top: 1rem; opacity: 0.7;">
+                    This may take a few moments...
+                </p>
+            </div>
+        </div>
+
+        <!-- Page 4: Results -->
+        <div class="page" id="page4">
+            <div class="card">
+                <h2 class="results-title">🏆 Voting Results</h2>
+                
+                <div class="results-grid" id="resultsContainer">
+                    <!-- Results will be populated here by JavaScript -->
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <button class="btn btn-secondary" onclick="goToPage(2)">New Simulation</button>
+                    <button class="btn" onclick="exportResults()">Export Results</button>
+                </div>
+
+                <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.2);">
+                    <p style="font-size: 1.1rem; opacity: 0.9; margin-bottom: 0.5rem;">
+                        🙏 <strong>Thank you for using our Blockchain-Based Voting System!</strong>
+                    </p>
+                    <p style="opacity: 0.7; font-size: 0.9rem;">
+                        Your participation helps advance the future of secure and transparent democratic processes.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let loadingStep = 1;
+        let progressInterval;
+        let apiResults = null;
+
+        function nextPage() {
+            document.getElementById(`page${currentPage}`).classList.remove('active');
+            currentPage++;
+            document.getElementById(`page${currentPage}`).classList.add('active');
+        }
+
+        function goToPage(pageNum) {
+            document.getElementById(`page${currentPage}`).classList.remove('active');
+            currentPage = pageNum;
+            document.getElementById(`page${currentPage}`).classList.add('active');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // Random name and political position generators
+        const randomFirstNames = [
+            "Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery", "Quinn", "Cameron", "Drew",
+            "Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason", "Isabella", "William",
+            "Charlotte", "James", "Amelia", "Benjamin", "Mia", "Lucas", "Harper", "Henry", "Evelyn", "Alexander",
+            "Abigail", "Michael", "Emily", "Daniel", "Elizabeth", "Matthew", "Mila", "Jackson", "Ella", "Sebastian"
+        ];
+        
+        const randomLastNames = [
+            "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+            "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+            "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson",
+            "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores"
+        ];
+
+        function getRandomParty() {
+            const parties = [
+                "Democratic Union", "Liberal Party", "Green Party", "Conservative Alliance", "Socialist Unity",
+                "Republican Front", "Progressive Coalition", "Libertarian Movement", "Social Democrats", "Patriot League",
+                "Workers Party", "Independent Alliance", "Reform Party", "National Unity", "Future Party",
+                "Justice Party", "Freedom Coalition", "Unity Movement", "People's Party", "Civic Alliance"
+            ];
+            return parties[Math.floor(Math.random() * parties.length)];
+        }
+
+        function getRandomName() {
+            const firstName = randomFirstNames[Math.floor(Math.random() * randomFirstNames.length)];
+            const lastName = randomLastNames[Math.floor(Math.random() * randomLastNames.length)];
+            return `${firstName} ${lastName}`;
+        }
+
+        function getRandomPoliticalPosition() {
+            // Weighted random: more likely to be moderate (-1, 0, 1) than extreme (-2, 2)
+            const positions = [-2, -1, -1, 0, 0, 0, 1, 1, 2];
+            return positions[Math.floor(Math.random() * positions.length)];
+        }
+
+        function updateCandidateInputs() {
+            const numCandidates = parseInt(document.getElementById('numCandidates').value) || 2;
+            const container = document.getElementById('candidateInputs');
+            
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= numCandidates; i++) {
+                const candidateDiv = document.createElement('div');
+                candidateDiv.style.cssText = 'background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);';
+                
+                const randomName = getRandomName();
+                const randomPosition = getRandomPoliticalPosition();
+                
+                candidateDiv.innerHTML = `
+                    <label style="display: block; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; color: rgba(255,255,255,0.9);">Candidate ${i}</label>
+                    <input type="text" class="form-input" id="candidate${i}" placeholder="Enter candidate name" value="${randomName}" style="margin-bottom: 0.8rem; font-size: 0.9rem; padding: 0.8rem;">
+                    
+                    <label style="display: block; font-size: 0.8rem; margin-bottom: 0.3rem; color: rgba(255,255,255,0.8);">Party Name</label>
+                    <input type="text" class="form-input" id="party${i}" placeholder="Enter party name" value="${getRandomParty()}" style="margin-bottom: 0.8rem; font-size: 0.9rem; padding: 0.8rem;">
+                    
+                    <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: rgba(255,255,255,0.8);">Political Position</label>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem;">
+                        <span style="font-size: 0.75rem; color: #ff6b6b;">Far Left</span>
+                        <select class="form-input" id="position${i}" style="padding: 0.5rem; font-size: 0.8rem; background: rgba(255,255,255,0.1);">
+                            <option value="-2" ${randomPosition === -2 ? 'selected' : ''}>-2 (Far Left)</option>
+                            <option value="-1" ${randomPosition === -1 ? 'selected' : ''}>-1 (Left)</option>
+                            <option value="0" ${randomPosition === 0 ? 'selected' : ''}>0 (Center)</option>
+                            <option value="1" ${randomPosition === 1 ? 'selected' : ''}>+1 (Right)</option>
+                            <option value="2" ${randomPosition === 2 ? 'selected' : ''}>+2 (Far Right)</option>
+                        </select>
+                        <span style="font-size: 0.75rem; color: #4dabf7;">Far Right</span>
+                    </div>
+                    <div style="font-size: 0.7rem; opacity: 0.6; text-align: center;">
+                        <span style="color: #ff6b6b;">● ● </span>
+                        <span style="color: #69db7c;">●</span>
+                        <span style="color: #4dabf7;"> ● ●</span>
+                    </div>
+                `;
+                
+                container.appendChild(candidateDiv);
+            }
+        }
+
+        function getCandidateData() {
+            const numCandidates = parseInt(document.getElementById('numCandidates').value) || 5;
+            const candidates = [];
+            
+            for (let i = 1; i <= numCandidates; i++) {
+                const nameInput = document.getElementById(`candidate${i}`);
+                const partyInput = document.getElementById(`party${i}`);
+                const positionInput = document.getElementById(`position${i}`);
+                
+                const name = nameInput ? nameInput.value.trim() : '';
+                const party = partyInput ? partyInput.value.trim() : '';
+                const position = positionInput ? parseInt(positionInput.value) : 0;
+                
+                if (name) {
+                    candidates.push({
+                        name: name,
+                        party: party,
+                        political_position: position
+                    });
+                }
+            }
+            
+            return candidates;
+        }
+
+        function getFormData() {
+            const scoreMin = parseInt(document.getElementById('scoreMin').value);
+            const scoreMax = parseInt(document.getElementById('scoreMax').value);
+            const candidateData = getCandidateData();
+            
+            const data = {
+                number_of_voters: parseInt(document.getElementById('numVoters').value),
+                number_of_districts: parseInt(document.getElementById('numDistricts').value),
+                number_of_candidates: parseInt(document.getElementById('numCandidates').value),
+                score_range_min: scoreMin,
+                score_range_max: scoreMax,
+                voting_strategies: {
+                    polarized: (parseInt(document.getElementById('polarized').value) || 0) / 100,
+                    random: (parseInt(document.getElementById('random').value) || 0) / 100,
+                    strategic_undervoting: (parseInt(document.getElementById('strategic_undervoting').value) || 0) / 100,
+                    bullet: (parseInt(document.getElementById('bullet').value) || 0) / 100,
+                    biased_towards_left_wing_candidates: (parseInt(document.getElementById('biased_towards_left_wing_candidates').value) || 0) / 100,
+                    biased_towards_right_wing_candidates: (parseInt(document.getElementById('biased_towards_right_wing_candidates').value) || 0) / 100,
+                    biased_towards_experienced_candidates: (parseInt(document.getElementById('biased_towards_experienced_candidates').value) || 0) / 100,
+                    biased_towards_young_candidates: (parseInt(document.getElementById('biased_towards_young_candidates').value) || 0) / 100
+                }
+            };
+            
+            // Add candidate data if provided
+            if (candidateData.length > 0) {
+                data.custom_candidates = candidateData;
+            }
+            
+            return data;
+        }
+
+        async function startSimulation() {
+            hideError();
+            
+            // Get form data
+            const formData = getFormData();
+            
+            // Validate input
+            if (!formData.number_of_voters || formData.number_of_voters < 1) {
+                showError('Please enter a valid number of voters (minimum: 1)');
+                return;
+            }
+            
+            if (!formData.number_of_candidates || formData.number_of_candidates < 2 || formData.number_of_candidates > 20) {
+                showError('Please enter a valid number of candidates (2-20)');
+                return;
+            }
+            
+            if (!formData.number_of_districts || formData.number_of_districts < 1 || formData.number_of_districts > 100) {
+                showError('Please enter a valid number of districts (1-100)');
+                return;
+            }
+            
+            if (formData.score_range_min >= formData.score_range_max) {
+                showError('Maximum score must be greater than minimum score');
+                return;
+            }
+            
+            if (formData.score_range_min < 0 || formData.score_range_max > 100) {
+                showError('Score range must be between 0 and 100');
+                return;
+            }
+
+            console.log('Sending data to API:', formData);
+            
+            nextPage(); // Go to loading page
+            simulateLoading();
+
+            try {
+                // Send POST request to the API
+                const response = await fetch('http://127.0.0.1:8000/election', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('API Response:', result);
+                apiResults = result;
+                
+                // API call completed successfully - now finish the loading animation
+                finishLoadingAndShowResults();
+                
+            } catch (error) {
+                console.error('Error calling API:', error);
+                clearInterval(progressInterval);
+                
+                // Show error on loading page
+                document.querySelector('.loading-text').textContent = 'Error occurred';
+                document.querySelector('.loading-spinner').style.display = 'none';
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.innerHTML = `
+                    <strong>Connection Error:</strong><br>
+                    ${error.message}<br><br>
+                    <strong>Make sure:</strong><br>
+                    • The API server is running (python -m uvicorn server:app)<br>
+                    • The server is accessible at http://127.0.0.1:8000<br><br>
+                    <button class="btn" onclick="goToPage(2)">Try Again</button>
+                `;
+                
+                document.querySelector('.loading-steps').replaceWith(errorDiv);
+            }
+        }
+
+        function finishLoadingAndShowResults() {
+            // Clear any existing interval
+            clearInterval(progressInterval);
+            
+            // Complete the progress bar
+            document.getElementById('progressFill').style.width = '100%';
+            
+            // Activate final step
+            const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+            steps.forEach(step => {
+                const element = document.getElementById(step);
+                if (element) element.classList.remove('active');
+            });
+            document.getElementById('step5').classList.add('active');
+            
+            // Wait a moment then show results
+            setTimeout(() => {
+                displayResults();
+                nextPage(); // Go to results page
+            }, 1000);
+        }
+
+        function simulateLoading() {
+            loadingStep = 1;
+            const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+
+            // Reset all steps
+            steps.forEach(step => {
+                const element = document.getElementById(step);
+                if (element) element.classList.remove('active');
+            });
+
+            // Make sure first step is active
+            const firstStep = document.getElementById('step1');
+            if (firstStep) firstStep.classList.add('active');
+
+            // Progress bar animation (but don't complete automatically)
+            let progress = 0;
+            progressInterval = setInterval(() => {
+                progress += 1; // Slower progress
+                
+                // Cap at 90% - wait for API to complete
+                if (progress > 90) {
+                    progress = 90;
+                }
+                
+                document.getElementById('progressFill').style.width = progress + '%';
+                
+                // Activate steps based on progress
+                if (progress >= 20 && loadingStep < 2) {
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step2').classList.add('active');
+                    loadingStep = 2;
+                }
+                if (progress >= 40 && loadingStep < 3) {
+                    document.getElementById('step2').classList.remove('active');
+                    document.getElementById('step3').classList.add('active');
+                    loadingStep = 3;
+                }
+                if (progress >= 60 && loadingStep < 4) {
+                    document.getElementById('step3').classList.remove('active');
+                    document.getElementById('step4').classList.add('active');
+                    loadingStep = 4;
+                }
+                
+                // Don't auto-complete - wait for API
+                
+            }, 100);
+        }
+
+        function displayResults() {
+            const container = document.getElementById('resultsContainer');
+            
+            console.log('apiResults:', apiResults);
+            console.log('typeof apiResults:', typeof apiResults);
+            
+            if (apiResults && Object.keys(apiResults).length > 0) {
+                console.log('Displaying API results:', apiResults);
+                
+                // Parse the results - the API returns a string, so we might need to parse it
+                let results = apiResults;
+                if (typeof apiResults === 'string') {
+                    try {
+                        results = JSON.parse(apiResults);
+                    } catch (e) {
+                        results = apiResults;
+                    }
+                }
+                
+                // Function to get political position display
+                function getPoliticalPositionDisplay(position) {
+                    const positionMap = {
+                        '-2': 'Far Left 🔴',
+                        '-1': 'Left 🟠', 
+                        '0': 'Center 🟡',
+                        '1': 'Right 🟢',
+                        '2': 'Far Right'
+                    };
+                    return positionMap[position] || 'Unknown';
+                }
+                
+                // Get candidate political positions and parties from custom_candidates if available
+                const candidateData = {};
+                if (apiResults.custom_candidates) {
+                    apiResults.custom_candidates.forEach(candidate => {
+                        candidateData[candidate.name] = {
+                            political_position: candidate.political_position,
+                            party: candidate.party
+                        };
+                    });
+                }
+                
+                // Display actual election results
+                let candidatesHTML = '';
+                if (results.election_results && results.election_results.length > 0) {
+                    candidatesHTML = results.election_results.map((candidate, index) => {
+                        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}️⃣`;
+                        
+                        // Get party and political position from custom data
+                        const customData = candidateData[candidate.name];
+                        const partyName = customData ? customData.party : candidate.party || 'Independent';
+                        const politicalPosition = customData ? 
+                            getPoliticalPositionDisplay(customData.political_position.toString()) : 
+                            'Unknown Position';
+                        
+                        return `
+                            <div class="candidate-item">
+                                <div>
+                                    <strong>${medal} ${candidate.name || 'Candidate ' + (index + 1)}</strong>
+                                    <br>
+                                    <small style="opacity: 0.8;">${partyName} • ${politicalPosition}</small>
+                                </div>
+                                <div style="text-align: right;">
+                                    <strong style="color: #ffeb3b;">${candidate.total_score} points</strong><br>
+                                    <small style="opacity: 0.8;">${candidate.votes} votes • avg: ${candidate.average_score}</small>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    candidatesHTML = '<p>No candidate results available</p>';
+                }
+                
+                container.innerHTML = `
+                    <div class="result-card">
+                        <h3>🏆 Blockchain Election Results</h3>
+                        <div style="text-align: left;">
+                            <h4>✅ Election Completed Successfully!</h4>
+                            <div class="candidate-list">
+                                ${candidatesHTML}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h3>📊 Election Metrics</h3>
+                        <div style="text-align: left;">
+                            ${results.metrics ? `
+                                <p><strong>Voting Duration:</strong> ${results.metrics.voting_duration_secs}s</p>
+                                <p><strong>Total Gas Used:</strong> ${results.metrics.total_gas_used}</p>
+                                <p><strong>Gas per Voter:</strong> ${results.metrics.gas_per_voter}</p>
+                                <p><strong>Gas per Candidate:</strong> ${results.metrics.gas_per_candidate}</p>
+                            ` : '<p>No metrics available</p>'}
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h3>✅ System Status</h3>
+                        <div style="text-align: left;">
+                            <p>✅ UI connected to API successfully</p>
+                            <p>✅ API connected to blockchain successfully</p>
+                            <p>✅ Smart contract deployed and executed</p>
+                            <p>✅ Voting simulation completed</p>
+                            <p>✅ Results retrieved from blockchain</p>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h3>📊 Raw Blockchain Data</h3>
+                        <div style="text-align: left;">
+                            <pre style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; white-space: pre-wrap; font-size: 0.9rem; max-height: 300px; overflow-y: auto;">${JSON.stringify(results, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Fallback display
+                console.log('No API results, showing demo data');
+                container.innerHTML = `
+                    <div class="result-card">
+                        <h3>📊 Demo Results</h3>
+                        <p>API results not available - showing demo data</p>
+                        <p>Debug: apiResults = ${JSON.stringify(apiResults)}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function exportResults() {
+            if (apiResults) {
+                const dataStr = JSON.stringify(apiResults, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'blockchain_voting_results.json';
+                link.click();
+                URL.revokeObjectURL(url);
+            } else {
+                alert('No results to export. Please run a simulation first.');
+            }
+        }
+
+        // Initialize candidate inputs when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstStep = document.getElementById('step1');
+            if (firstStep) firstStep.classList.add('active');
+            
+            // Initialize candidate inputs
+            updateCandidateInputs();
+        });
+    </script>
+</body>
+</html>
