@@ -6,12 +6,11 @@ from simulation import run_election
 
 app = FastAPI()
 
-# Add CORS middleware with more specific settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],  # Explicitly allow OPTIONS
+    allow_methods=["GET", "POST", "OPTIONS"],  
     allow_headers=["*"],
 )
 

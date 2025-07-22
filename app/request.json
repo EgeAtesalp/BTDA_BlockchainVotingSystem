@@ -1,0 +1,17 @@
+{
+    "number_of_voters": 20,
+    "number_of_districts": 2,
+    "number_of_candidates": 10,
+    "score_range_min": 0,
+    "score_range_max": 10,
+    "voting_strategies": {
+        "polarized": 0.2,
+        "random": 0.2,
+        "strategic_undervoting": 0.1,
+        "bullet": 0.2,
+        "biased_towards_left_wing_candidates": 0.05,
+        "biased_towards_right_wing_candidates": 0.05,
+        "biased_towards_experienced_candidates": 0.1,
+        "biased_towards_young_candidates": 0.1
+    }
+}

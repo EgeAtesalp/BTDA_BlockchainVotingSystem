@@ -30,8 +30,10 @@ phases = [
 for col, _ in phases:
     df[col + "_s"] = df[col] / 1000
 
+
 def plot_phase_times(df, experiment_type):
     subset = df[df["experimentType"] == experiment_type]
+    labels = []
     if experiment_type == "VOTER_SCALING":
         labels = [cfg.get("votersPerDistrict", str(i)) for i, cfg in enumerate(subset["config"])]
     elif experiment_type == "DISTRICT_SCALING":
@@ -69,8 +71,8 @@ def plot_phase_times(df, experiment_type):
     plt.grid(axis='y', linestyle=':', alpha=0.6)
     plt.tight_layout(pad=4)
 
-
     plt.show()
+
 
 plot_phase_times(df, "VOTER_SCALING")
 plot_phase_times(df, "DISTRICT_SCALING")

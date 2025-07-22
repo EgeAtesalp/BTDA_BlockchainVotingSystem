@@ -1,13 +1,15 @@
 from web3 import Web3
 from math import floor
 from models import InputConfiguration
-from web3.types import TxParams
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
 import random
 import csv
 import time
+
+
+voting_strategies = dict()
 
 
 def generate_scores(strategy, score_range_min, score_range_max, candidates):
@@ -20,13 +22,6 @@ def generate_scores(strategy, score_range_min, score_range_max, candidates):
     return strategy_fn(score_range_min, score_range_max, len(candidates), candidates)
 
 
-voting_strategies = dict()
-
-# Polarized Scoring: Agents give only extreme scores (0 or 10) to maximize their preferred candidate's advantage
-# Strategic Undervoting: Agents give low scores to viable competitors while maximizing their preferred candidate's score
-# Bullet Voting: Agents give maximum score to one candidate and minimum to all others
-
-
 def register_strategy(strategy: str):
     def wrapper(func):
         voting_strategies[strategy] = func
@@ -36,20 +31,20 @@ def register_strategy(strategy: str):
 
 @register_strategy("polarized")
 def score_polarized(score_range_min, score_range_max, candidate_count, candidates):
-    # Assigns the maximum score to a randomly chosen half of the candidates and the minimum to the rest.
+    # Assigns the maximum score to a randomly chosen half of the candidates and the minimum to the rest
     winners = set(random.sample(range(candidate_count), k=(candidate_count + 1) // 2))
     return [score_range_max if i in winners else score_range_min for i in range(candidate_count)]
 
 
 @register_strategy("random")
 def score_random(score_range_min, score_range_max, candidate_count, candidates):
-    # Assigns a random score within the allowed range to each candidate.
+    # Assigns a random score within the allowed range to each candidate
     return [random.randint(score_range_min, score_range_max) for _ in range(candidate_count)]
 
 
 @register_strategy("strategic_undervoting")
 def score_strategic_undervoting(score_range_min, score_range_max, candidate_count, candidates):
-    # Assigns the maximum score to one randomly chosen favorite candidate and a low score to all others.
+    # Assigns the maximum score to one randomly chosen favorite candidate and a low score to all others
     fav = random.randrange(candidate_count)
     # Calculate a "low" score that's still within the valid range
     low_score = min(score_range_min + 1, score_range_max - 2)  # Ensure it's above minimum but still low
@@ -60,7 +55,7 @@ def score_strategic_undervoting(score_range_min, score_range_max, candidate_coun
 
 @register_strategy("bullet")
 def score_bullet(score_range_min, score_range_max, candidate_count, candidates):
-    # Assigns a score of 10 to one favorite candidate and 0 to all others — classic bullet voting.
+    # Assigns a maximum score to one candidate and minimum to all others
     fav = random.randrange(candidate_count)
     return [score_range_max if i == fav else score_range_min for i in range(candidate_count)]
 
@@ -68,7 +63,7 @@ def score_bullet(score_range_min, score_range_max, candidate_count, candidates):
 @register_strategy("biased_towards_left_wing_candidates")
 def score_biased_towards_left_wing_candidates(score_range_min, score_range_max, candidate_count, candidates):
     # Favors candidates with 'Left' or 'Far Left' political positions by giving them the highest score
-    # and the lowest score to every other condidate.
+    # and the lowest score to every other condidate
     scores = []
     for candidate in candidates:
         if candidate["political_position"] in ["Left", "Far Left"]:
@@ -81,7 +76,7 @@ def score_biased_towards_left_wing_candidates(score_range_min, score_range_max, 
 @register_strategy("biased_towards_right_wing_candidates")
 def score_biased_towards_right_wing_candidates(score_range_min, score_range_max, candidate_count, candidates):
     # Favors candidates with 'Right' or 'Far Right' political positions by giving them the highest score
-    # and the lowest score to every other condidate.
+    # and the lowest score to every other condidate
     scores = []
     for candidate in candidates:
         if candidate["political_position"] in ["Right", "Far Right"]:
@@ -93,7 +88,7 @@ def score_biased_towards_right_wing_candidates(score_range_min, score_range_max,
 
 @register_strategy("biased_towards_experienced_candidates")
 def score_biased_towards_experienced_candidates(score_range_min, score_range_max, candidate_count, candidates):
-    # Assigns higher scores to more experienced candidates, normalized to the score range.
+    # Assigns higher scores to more experienced candidates, normalized to the score range
     max_exp = max(int(candidate["experience"]) for candidate in candidates)
     scores = []
     for candidate in candidates:
@@ -106,8 +101,7 @@ def score_biased_towards_experienced_candidates(score_range_min, score_range_max
 
 @register_strategy("biased_towards_young_candidates")
 def score_biased_towards_young_candidates(score_range_min, score_range_max, candidate_count, candidates):
-    # Favors younger candidates by assigning higher scores to lower ages, normalized to the score range.
-    # Favors younger candidates by assigning higher scores to lower ages, normalized to the score range.
+    # Favors younger candidates by assigning higher scores to lower ages, normalized to the score range
     max_age = max(int(candidate["age"]) for candidate in candidates)
     min_age = min(int(candidate["age"]) for candidate in candidates)
     scores = []
@@ -153,17 +147,17 @@ def distribute_strategies_to_voters(district_voters, voting_strategies_config):
     total_w = sum(weights)
     weights = [w / total_w for w in weights]
 
-    # 1) Initial seat counts = floor(expected seats)
+    # Initial seat counts = floor(expected seats)
     raw = [w * len(district_voters) for w in weights]
     counts = [floor(r) for r in raw]
 
-    # 2) Distribute the leftover seats to the largest remainders
+    # Distribute the leftover seats to the largest remainders
     leftover = len(district_voters) - sum(counts)
     remainders = sorted(((raw[i] - counts[i], i) for i in range(len(strategies))), reverse=True)
     for _, idx in remainders[:leftover]:
         counts[idx] += 1
 
-    # 3) Build a deterministic pool of strategies
+    # Build a deterministic pool of strategies
     strategy_pool = [strategy for strategy, cnt in zip(strategies, counts) for _ in range(cnt)]
 
     return strategy_pool
@@ -231,7 +225,6 @@ def check_registration_results(registration_results, orchestrator_contract, dist
         for r in failed_registrations:
             print(f"      District {r.get('districtId')}: {r.get('error')}")
 
-    # Call getElectionStats() from orchestrator contract
     reg_stats = orchestrator_contract.functions.getElectionStats().call()
     total_voters_registered = reg_stats._totalVotersRegistered if hasattr(
         reg_stats, '_totalVotersRegistered') else reg_stats[1]  # fallback if tuple
@@ -272,7 +265,7 @@ async def cast_votes_for_district(district, score_range_min, score_range_max, ca
             executor,
             cast_vote_sync,
             contract,
-            voters[i],  # voters[i] is already an address
+            voters[i],
             generate_scores(strategies[i], score_range_min, score_range_max, candidates),
             i,
             district_id,
@@ -339,7 +332,7 @@ async def run_election(config: InputConfiguration):
     assert w3.is_connected(), "❌ Failed to connect to Hardhat node."
 
     # Load the ABI of the ElectionOrchestrator contract
-    with open("artifacts/contracts/ElectionOrchestrator.sol/ElectionOrchestrator.json") as f:
+    with open("../artifacts/contracts/ElectionOrchestrator.sol/ElectionOrchestrator.json") as f:
         contract_data = json.load(f)
         abi = contract_data["abi"]
         bytecode = contract_data["bytecode"]
@@ -370,29 +363,9 @@ async def run_election(config: InputConfiguration):
 
     voters_per_district_list = calculate_voters_per_district(number_of_voters, number_of_districts)
 
-    admin = w3.eth.accounts[0]
     # Accounts
-    if len(w3.eth.accounts) < number_of_voters:
-        voter_accounts = [w3.eth.account.create() for _ in range(number_of_voters)]
-        amount_wei = w3.to_wei(100, "ether")
-
-        # Fund each new account from the funder
-        for voter in voter_accounts:
-            tx_dict: TxParams = {
-                'from': admin,
-                'to': voter.address,
-                'value': amount_wei,
-                'gas': 21000,
-                'gasPrice': w3.to_wei('1', 'gwei'),
-                'nonce': w3.eth.get_transaction_count(admin),
-            }
-
-            tx_hash = w3.eth.send_transaction(tx_dict)
-            receipt = track_gas(w3, tx_hash, gas_tracker)
-        voters = [voter.address for voter in voter_accounts]
-    else:
-        accounts = w3.eth.accounts
-        voters = accounts[1:number_of_voters+1]  # Skip the admin account
+    admin = w3.eth.accounts[0]
+    voters = w3.eth.accounts[1:number_of_voters+1]
 
     # --- Add candidates ---
     for candidate in candidates:
@@ -401,11 +374,15 @@ async def run_election(config: InputConfiguration):
     print(f"✅ Added {len(candidates)} candidates")
 
     # Load the DistrictVoting ABI from JSON artifact file
-    with open("artifacts/contracts/DistrictVoting.sol/DistrictVoting.json") as f:
+    with open("../artifacts/contracts/DistrictVoting.sol/DistrictVoting.json") as f:
         district_data = json.load(f)
         district_abi = district_data["abi"]
 
     districts = []
+
+    # Set score range
+    tx = orchestrator_contract.functions.setGradingScale(score_range_min, score_range_max).transact({'from': admin})
+    receipt = track_gas(w3, tx, gas_tracker)
 
     # --- Create districts ---
     for district in range(number_of_districts):
@@ -430,9 +407,6 @@ async def run_election(config: InputConfiguration):
         })
 
     print(f"✅ Created {number_of_districts} districts")
-
-    # Fetch counts from contract
-    candidate_count = orchestrator_contract.functions.getCandidateCount().call()
 
     district_creation_stats = orchestrator_contract.functions.getElectionStats().call()
     district_count = district_creation_stats[0]
