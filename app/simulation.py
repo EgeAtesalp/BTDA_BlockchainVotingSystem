@@ -620,10 +620,3 @@ async def run_election(config: InputConfiguration):
     }
 
     return response
-
-
-if __name__ == "__main__":
-    with open("request.json", "r") as file:
-        data = json.load(file)
-    config = InputConfiguration(**data)
-    asyncio.run(run_election(config))
