@@ -7,7 +7,8 @@ import json
 import random
 import csv
 import time
-
+from eth_account import Account
+import secrets
 
 voting_strategies = dict()
 
@@ -138,6 +139,60 @@ def track_gas(w3, tx_hash, gas_tracker):
     return receipt
 
 
+def generate_voter_wallets(total_voters):
+    print(f"🔧 Generating {total_voters} voter wallets...")
+
+    wallets = []
+    for i in range(total_voters):
+        # Generate random private key
+        private_key = secrets.token_hex(32)
+        # Create account from private key
+        account = Account.from_key(private_key)
+
+        wallet_data = {
+            'address': account.address,
+            'privateKey': private_key,
+            'account': account,
+            'index': i
+        }
+        wallets.append(wallet_data)
+
+    return wallets
+
+
+def fund_wallets_batch(w3, admin_account, wallet_addresses, funding_amount_eth="1.0", batch_size=50):
+    print(f"💰 Funding {len(wallet_addresses)} wallets with {funding_amount_eth} ETH each...")
+
+    funding_amount_wei = w3.to_wei(funding_amount_eth, 'ether')
+
+    for i in range(0, len(wallet_addresses), batch_size):
+        batch = wallet_addresses[i:i + batch_size]
+
+        for address in batch:
+            try:
+                # Get nonce for admin account
+                nonce = w3.eth.get_transaction_count(admin_account)
+
+                # Build funding transaction
+                transaction = {
+                    'to': address,
+                    'value': funding_amount_wei,
+                    'gas': 21000,
+                    'gasPrice': w3.to_wei(20, 'gwei'),
+                    'nonce': nonce,
+                }
+
+                # Send transaction
+                tx_hash = w3.eth.send_transaction(transaction)
+                w3.eth.wait_for_transaction_receipt(tx_hash)
+
+            except Exception as e:
+                print(f"   ⚠️ Failed to fund {address}: {str(e)}")
+
+        if (i // batch_size + 1) % 10 == 0:
+            print(f"   📊 Funded {min(i + batch_size, len(wallet_addresses))}/{len(wallet_addresses)} wallets")
+
+
 def distribute_strategies_to_voters(district_voters, voting_strategies_config):
     strategies, weights = zip(*voting_strategies_config.items())
     strategies = list(strategies)
@@ -237,10 +292,36 @@ def check_registration_results(registration_results, orchestrator_contract, dist
     )
 
 
-def cast_vote_sync(contract, voter_account, scores, voter_index, district_id, gas_tracker):
+def cast_vote_sync(contract, voter_address, voter_private_key, scores, voter_index, district_id, gas_tracker, w3):
+    """Modified to work with generated wallets and private keys"""
     try:
-        tx_hash = contract.functions.castVote(scores).transact({'from': voter_account})
-        receipt = track_gas(contract.w3, tx_hash, gas_tracker)
+        # Get nonce for voter
+        nonce = w3.eth.get_transaction_count(voter_address)
+
+        # Get estimated gas for the transaction
+        estimated_gas = contract.functions.castVote(scores).estimate_gas({'from': voter_address})
+
+        # Build transaction
+        transaction = contract.functions.castVote(scores).build_transaction({
+            'from': voter_address,
+            'nonce': nonce,
+            'gas': estimated_gas + 10000,  # Add a buffer to estimated gas
+            'gasPrice': w3.to_wei(20, 'gwei'),
+        })
+
+        # Sign transaction
+        signed_txn = w3.eth.account.sign_transaction(transaction, voter_private_key)
+
+        # Send transaction
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        # Track gas
+        gas_used = receipt.gasUsed
+        gas_price = receipt.effectiveGasPrice
+        eth_used = w3.from_wei(gas_used * gas_price, 'ether')
+        gas_tracker['gas'] += gas_used
+        gas_tracker['eth'] += eth_used
 
         if voter_index % 5 == 0:
             print(f"     📊 District {district_id}: {voter_index + 1} votes cast")
@@ -251,12 +332,12 @@ def cast_vote_sync(contract, voter_account, scores, voter_index, district_id, ga
         return {'district': district_id, 'voter': voter_index, 'success': False, 'error': str(e)}
 
 
-async def cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker):
+async def cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker, w3):
     district_id = district["id"]
-    voters = district["voters"]
+    voter_wallets = district["voter_wallets"]
     contract = district["contract"]
     strategies = district["strategies"]
-    print(f"   🗳️ District {district_id}: Starting {len(voters)} parallel votes...")
+    print(f"   🗳️ District {district_id}: Starting {len(voter_wallets)} parallel votes...")
 
     loop = asyncio.get_event_loop()
 
@@ -265,36 +346,37 @@ async def cast_votes_for_district(district, score_range_min, score_range_max, ca
             executor,
             cast_vote_sync,
             contract,
-            voters[i],
+            voter_wallets[i]['address'],
+            voter_wallets[i]['privateKey'],
             generate_scores(strategies[i], score_range_min, score_range_max, candidates),
             i,
             district_id,
-            gas_tracker
+            gas_tracker,
+            w3
         )
-        for i in range(len(voters))
+        for i in range(len(voter_wallets))
     ]
 
     results = await asyncio.gather(*vote_tasks)
     successful = sum(1 for r in results if r["success"])
-    print(f"   ✅ District {district_id}: {successful}/{len(voters)} votes completed")
+    print(f"   ✅ District {district_id}: {successful}/{len(voter_wallets)} votes completed")
 
     return {
         "districtId": district_id,
         "districtName": district["name"],
-        "totalVoters": len(voters),
+        "totalVoters": len(voter_wallets),
         "successfulVotes": successful,
         "results": results
     }
 
 
-async def run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker):
+async def run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker, w3):
     executor = ThreadPoolExecutor()
     voting_tasks = [
-        cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker)
+        cast_votes_for_district(district, score_range_min, score_range_max, candidates, executor, gas_tracker, w3)
         for district in districts
     ]
-    all_results = await asyncio.gather(*voting_tasks)
-    return all_results
+    await asyncio.gather(*voting_tasks)
 
 
 def calculate_voters_per_district(number_of_voters, number_of_districts):
@@ -338,6 +420,7 @@ async def run_election(config: InputConfiguration):
         bytecode = contract_data["bytecode"]
 
     w3.eth.default_account = w3.eth.accounts[0]
+    admin = w3.eth.accounts[0]
 
     # Create contract factory
     ElectionOrchestrator = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -354,21 +437,29 @@ async def run_election(config: InputConfiguration):
     # Creates the contract instance using the address
     orchestrator_contract = w3.eth.contract(address=orchestrator_contract_address, abi=abi)
 
-    # Parse Configuration dicionary to variables
+    # Parse Configuration dictionary to variables
     number_of_districts = config.number_of_districts
     candidates = generate_candidates(config.number_of_candidates)
     number_of_voters = config.number_of_voters
     score_range_min = config.score_range_min
     score_range_max = config.score_range_max
 
+    voters_per_district_list = calculate_voters_per_district(number_of_voters, number_of_districts)
 
-    # Accounts
-    admin = w3.eth.accounts[0]
-    voters = w3.eth.accounts[1:number_of_voters+1]
+    # Wallet Generation
+    print("🔧 Wallet Generation")
 
-    voters_per_district_list = calculate_voters_per_district(len(voters), number_of_districts)
+    # Generate voter wallets instead of using pre-funded accounts
+    voter_wallets = generate_voter_wallets(number_of_voters)
+    print("✅ Wallet generation completed")
 
-    # --- Add candidates ---
+    # Extract addresses from generated wallets
+    voter_addresses = [wallet['address'] for wallet in voter_wallets]
+
+    # Fund the generated wallets
+    fund_wallets_batch(w3, admin, voter_addresses, funding_amount_eth="1.0", batch_size=50)
+
+    # Add candidates
     for candidate in candidates:
         tx = orchestrator_contract.functions.addCandidate(candidate["name"], candidate["party"]).transact({'from': admin})
         receipt = track_gas(w3, tx, gas_tracker)
@@ -385,7 +476,7 @@ async def run_election(config: InputConfiguration):
     tx = orchestrator_contract.functions.setGradingScale(score_range_min, score_range_max).transact({'from': admin})
     receipt = track_gas(w3, tx, gas_tracker)
 
-    # --- Create districts ---
+    # Create districts
     for district in range(number_of_districts):
         tx = orchestrator_contract.functions.createDistrict(str(district)).transact({'from': admin})
         receipt = track_gas(w3, tx, gas_tracker)
@@ -395,16 +486,19 @@ async def run_election(config: InputConfiguration):
         # Create contract instance at the district address
         district_contract = w3.eth.contract(address=district_address, abi=district_abi)
 
+        # Distribute wallet data to districts
         start_index = sum(voters_per_district_list[:district])
         end_index = start_index + voters_per_district_list[district]
-        district_voters = voters[start_index:end_index]
+        district_voter_wallets = voter_wallets[start_index:end_index]
+        district_voter_addresses = [wallet['address'] for wallet in district_voter_wallets]
 
         districts.append({
             "id": district,
             "name": str(district),
             "address": district_address,
             "contract": district_contract,
-            "voters": district_voters
+            "voters": district_voter_addresses,
+            "voter_wallets": district_voter_wallets
         })
 
     print(f"✅ Created {number_of_districts} districts")
@@ -420,18 +514,18 @@ async def run_election(config: InputConfiguration):
     registration_results = await register_voters_parallel(districts, orchestrator_contract, strategies_config, gas_tracker)
     check_registration_results(registration_results, orchestrator_contract, district_count)
 
-    # --- Start voting phase ---
+    # Start voting phase
     tx = orchestrator_contract.functions.startVoting().transact({'from': admin})
     receipt = track_gas(w3, tx, gas_tracker)
     print("✅ Voting started")
 
-    # --- Cast votes ---
+    # Cast votes
     start = time.time()
-    voting_results = await run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker)
+    await run_parallel_voting(districts, score_range_min, score_range_max, candidates, gas_tracker, w3)
 
     end = time.time()
 
-    # --- End election ---
+    # End election
     tx = orchestrator_contract.functions.endVoting().transact({'from': admin})
     receipt = track_gas(w3, tx, gas_tracker)
     print("✅ Election ended")
@@ -442,7 +536,7 @@ async def run_election(config: InputConfiguration):
 
     results = orchestrator_contract.functions.getElectionResults().call()
 
-    # --- Fetch and display results ---
+    # Fetch and display results
     names, parties, total_scores, vote_counts = results
 
     print("\n🏁 Election Results:")
