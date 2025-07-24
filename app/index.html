@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Voting System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #ffffff;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 900px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .page.active { display: block; }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            margin: 0.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .form-input, .form-slider {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .form-input::placeholder { color: rgba(255, 255, 255, 0.7); }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+            text-align: left;
+        }
+
+        .error-message, .success-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+            color: #ffffff;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.6);
+        }
+
+        .success-message {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.6);
+        }
+
+        .welcome-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #fff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .blockchain-icon {
+            font-size: 4rem;
+            margin: 2rem 0;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .loading-spinner {
+            width: 100px;
+            height: 100px;
+            margin: 2rem auto;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-steps {
+            text-align: left;
+            max-width: 400px;
+            margin: 2rem auto;
+        }
+
+        .loading-step {
+            padding: 0.8rem 0;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            padding-left: 1rem;
+        }
+
+        .loading-step.active {
+            opacity: 1;
+            border-left-color: #667eea;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            margin-top: 2rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 1rem 0;
+            text-align: left;
+        }
+
+        .candidate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            margin: 0.8rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border-left: 6px solid #667eea;
+        }
+
+        .candidate-item.winner {
+            border-left-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .strategy-section {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .strategy-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .strategy-item label {
+            display: block;
+            margin-bottom: 0.8rem;
+            font-weight: 500;
+            font-size: 0.95rem;
+            color: #ffffff;
+        }
+
+        .form-slider {
+            -webkit-appearance: none;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            padding: 0;
+        }
+
+        .form-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            cursor: pointer;
+        }
+
+        .status-indicator {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .status-valid {
+            background: rgba(76, 175, 80, 0.15);
+            border: 2px solid #4CAF50;
+        }
+
+        .status-invalid {
+            background: rgba(244, 67, 54, 0.15);
+            border: 2px solid #f44336;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Page 1: Welcome -->
+        <div class="page active" id="page1">
+            <div class="card">
+                <div class="blockchain-icon">🗳️</div>
+                <h1 class="welcome-title">Blockchain-Based Voting System</h1>
+                <p style="opacity: 0.9; margin-bottom: 2rem; font-size: 1.2rem; line-height: 1.5;">
+                    [SS 2025] Blockchain Technology and Decentralized Applications<br>
+                    Group H (INET) - TU Berlin<br>
+                    <span style="font-weight: 700;">Ege Atesalp, Zacharias Athanasiadis, Leon Khashaki<br>
+                    Supervisor: Arash Pourdamghani</span>
+                </p>
+                <button class="btn" onclick="nextPage()">Get Started</button>
+            </div>
+        </div>
+
+        <!-- Page 2: Parameters -->
+        <div class="page" id="page2">
+            <div class="card">
+                <h2 style="font-size: 2.5rem; margin-bottom: 2rem;">Configure Voting Parameters</h2>
+
+                <div class="form-grid">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Score Range</label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="number" class="form-input" id="scoreMin" value="0" min="0" max="100" style="flex: 1;" placeholder="Min">
+                            <span style="opacity: 0.7;">to</span>
+                            <input type="number" class="form-input" id="scoreMax" value="10" min="1" max="100" style="flex: 1;" placeholder="Max">
+                        </div>
+                        <small style="opacity: 0.8;">Range voters can assign to candidates (0-100 max)</small>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Number of Voters</label>
+                        <input type="number" class="form-input" id="numVoters" value="100" min="1" placeholder="e.g., 100">
+                        <small style="opacity: 0.8;">Total voters in simulation</small>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Number of Candidates</label>
+                        <input type="number" class="form-input" id="numCandidates" value="5" min="2" max="20" placeholder="e.g., 5">
+                        <small style="opacity: 0.8;">Randomly selected from database</small>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Number of Districts</label>
+                        <input type="number" class="form-input" id="numDistricts" value="10" min="1" max="100" placeholder="e.g., 10">
+                        <small style="opacity: 0.8;">Voting districts for simulation</small>
+                    </div>
+                </div>
+
+                <!-- Voting Strategies -->
+                <div class="strategy-section">
+                    <h3 style="margin-bottom: 1rem;">Voting Strategy Distribution</h3>
+                    <p style="opacity: 0.9; margin-bottom: 1.5rem;">Configure how voters will behave:</p>
+
+                    <div id="strategyStatus" class="status-indicator status-valid">
+                        📊 Total: 100% ✅ Perfect Distribution
+                    </div>
+
+                    <div class="strategy-grid">
+                        <div class="strategy-item">
+                            <label>Random Voting: <span id="randomValue">70%</span></label>
+                            <input type="range" class="form-slider" id="random" value="70" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Assigns a random score within the allowed range to each candidate</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Polarized Voting: <span id="polarizedValue">15%</span></label>
+                            <input type="range" class="form-slider" id="polarized" value="15" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Assigns the maximum score to a randomly chosen half of the candidates and the minimum to the rest</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Strategic Undervoting: <span id="strategicValue">5%</span></label>
+                            <input type="range" class="form-slider" id="strategic_undervoting" value="5" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Assigns the maximum score to one randomly chosen favorite candidate and a low score to all others</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Bullet Voting: <span id="bulletValue">5%</span></label>
+                            <input type="range" class="form-slider" id="bullet" value="5" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Assigns a maximum score to one candidate and minimum to all others</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Left-Wing Bias: <span id="leftValue">2%</span></label>
+                            <input type="range" class="form-slider" id="biased_towards_left_wing_candidates" value="2" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Favors candidates with 'Left' or 'Far Left' political positions by giving them the highest score</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Right-Wing Bias: <span id="rightValue">2%</span></label>
+                            <input type="range" class="form-slider" id="biased_towards_right_wing_candidates" value="2" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Favors candidates with 'Right' or 'Far Right' political positions by giving them the highest score</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Youth Bias: <span id="youngValue">1%</span></label>
+                            <input type="range" class="form-slider" id="biased_towards_young_candidates" value="1" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Favors younger candidates by assigning higher scores to lower ages (candidates under 35 are considered young)</small>
+                        </div>
+
+                        <div class="strategy-item">
+                            <label>Experience Bias: <span id="expValue">0%</span></label>
+                            <input type="range" class="form-slider" id="biased_towards_experienced_candidates" value="0" min="0" max="100" oninput="updateAllStrategies()">
+                            <small style="opacity: 0.9;">Assigns higher scores to more experienced candidates (candidates with over 15 years experience are considered experienced)</small>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 4px solid #2196F3;">
+                        <h4 style="color: #ffffff; margin-bottom: 0.5rem;">ℹ️ How This Works</h4>
+                        <p style="opacity: 0.9; font-size: 0.9rem; line-height: 1.4; color: #ffffff;">
+                            Each voter is randomly assigned one of these 8 strategies. For example, if "Random Voting" is 70%,
+                            then 70% of all voters will use random voting behavior.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="error-message"></div>
+                <div id="successMessage" class="success-message"></div>
+
+                <button class="btn" onclick="startSimulation()">Start Blockchain Simulation</button>
+            </div>
+        </div>
+
+        <!-- Page 3: Loading -->
+        <div class="page" id="page3">
+            <div class="card">
+                <h2 class="loading-text">Initializing Blockchain Network</h2>
+                <div class="loading-spinner"></div>
+
+                <div class="loading-steps">
+                    <div class="loading-step active" id="step1">🔧 Setting up Ethereum virtual network</div>
+                    <div class="loading-step" id="step2">📜 Deploying smart contracts</div>
+                    <div class="loading-step" id="step3">🤖 Creating virtual agents</div>
+                    <div class="loading-step" id="step4">🗳️ Running voting simulation</div>
+                    <div class="loading-step" id="step5">📊 Processing results</div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+                <p style="margin-top: 1rem; opacity: 0.7;">
+                    This may take some time...
+                </p>
+            </div>
+        </div>
+
+        <!-- Page 4: Results -->
+        <div class="page" id="page4">
+            <div class="card">
+                <h2>Blockchain Election Results</h2>
+                <div id="resultsContainer"></div>
+                <div style="margin-top: 2rem;">
+                    <button class="btn btn-secondary" onclick="goToPage(2)">🔄 New Simulation</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let apiResults = null;
+        let progressInterval;
+
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+
+        function nextPage() {
+            document.getElementById(`page${currentPage}`).classList.remove('active');
+            currentPage++;
+            document.getElementById(`page${currentPage}`).classList.add('active');
+        }
+
+        function goToPage(pageNum) {
+            document.getElementById(`page${currentPage}`).classList.remove('active');
+            currentPage = pageNum;
+            document.getElementById(`page${currentPage}`).classList.add('active');
+        }
+
+        function updateAllStrategies() {
+            const strategies = ['random', 'polarized', 'strategic_undervoting', 'bullet',
+                               'biased_towards_left_wing_candidates', 'biased_towards_right_wing_candidates',
+                               'biased_towards_young_candidates', 'biased_towards_experienced_candidates'];
+            const labels = ['randomValue', 'polarizedValue', 'strategicValue', 'bulletValue',
+                           'leftValue', 'rightValue', 'youngValue', 'expValue'];
+
+            let total = 0;
+            strategies.forEach((id, i) => {
+                const val = parseInt(document.getElementById(id).value) || 0;
+                document.getElementById(labels[i]).textContent = val + '%';
+                total += val;
+            });
+
+            const status = document.getElementById('strategyStatus');
+            if (total === 100) {
+                status.innerHTML = '📊 Total: 100% ✅ Perfect Distribution';
+                status.className = 'status-indicator status-valid';
+            } else if (total < 100) {
+                status.innerHTML = `📊 Total: ${total}% ⚠️ Need ${100-total}% more`;
+                status.className = 'status-indicator status-invalid';
+            } else {
+                status.innerHTML = `📊 Total: ${total}% ⚠️ ${total-100}% over limit`;
+                status.className = 'status-indicator status-invalid';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.innerHTML = `<strong>❌ Error:</strong> ${message}`;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function getFormData() {
+            return {
+                number_of_voters: parseInt(document.getElementById('numVoters').value),
+                number_of_districts: parseInt(document.getElementById('numDistricts').value),
+                number_of_candidates: parseInt(document.getElementById('numCandidates').value),
+                score_range_min: parseInt(document.getElementById('scoreMin').value),
+                score_range_max: parseInt(document.getElementById('scoreMax').value),
+                voting_strategies: {
+                    random: (parseInt(document.getElementById('random').value) || 0) / 100,
+                    polarized: (parseInt(document.getElementById('polarized').value) || 0) / 100,
+                    strategic_undervoting: (parseInt(document.getElementById('strategic_undervoting').value) || 0) / 100,
+                    bullet: (parseInt(document.getElementById('bullet').value) || 0) / 100,
+                    biased_towards_left_wing_candidates: (parseInt(document.getElementById('biased_towards_left_wing_candidates').value) || 0) / 100,
+                    biased_towards_right_wing_candidates: (parseInt(document.getElementById('biased_towards_right_wing_candidates').value) || 0) / 100,
+                    biased_towards_experienced_candidates: (parseInt(document.getElementById('biased_towards_experienced_candidates').value) || 0) / 100,
+                    biased_towards_young_candidates: (parseInt(document.getElementById('biased_towards_young_candidates').value) || 0) / 100
+                }
+            };
+        }
+
+        function validateForm(data) {
+            if (data.number_of_voters < 1) return 'Number of voters must be at least 1';
+            if (data.number_of_candidates < 2 || data.number_of_candidates > 20) return 'Candidates must be between 2-20';
+            if (data.number_of_districts < 1 || data.number_of_districts > 100) return 'Districts must be between 1-100';
+            if (data.score_range_min >= data.score_range_max) return 'Max score must be greater than min score';
+            if (data.number_of_districts > data.number_of_voters) return 'Cannot have more districts than voters';
+
+            const total = data.voting_strategies.random + data.voting_strategies.polarized +
+                         data.voting_strategies.strategic_undervoting + data.voting_strategies.bullet +
+                         data.voting_strategies.biased_towards_left_wing_candidates +
+                         data.voting_strategies.biased_towards_right_wing_candidates +
+                         data.voting_strategies.biased_towards_experienced_candidates +
+                         data.voting_strategies.biased_towards_young_candidates;
+
+            if (Math.abs(total - 1.0) > 0.01) {
+                return `All voting strategies must sum to 100%. Current total: ${Math.round(total * 100)}%`;
+            }
+
+            return null;
+        }
+
+        async function startSimulation() {
+            hideMessages();
+
+            const formData = getFormData();
+            const error = validateForm(formData);
+
+            if (error) {
+                showError(error);
+                return;
+            }
+
+            // Store form data for displaying in results
+            sessionStorage.setItem('lastFormData', JSON.stringify(formData));
+
+            nextPage();
+            simulateLoading();
+
+            try {
+                const response = await fetch(API_BASE_URL + '/election', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(formData),
+                    signal: AbortSignal.timeout(300000)
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `HTTP ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        errorMessage = await response.text() || errorMessage;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                apiResults = await response.json();
+                finishLoading();
+
+            } catch (error) {
+                showLoadingError(error.message);
+            }
+        }
+
+        function simulateLoading() {
+            const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+            let currentStep = 0;
+            let progress = 0;
+
+            steps.forEach(step => document.getElementById(step).classList.remove('active'));
+            document.getElementById('step1').classList.add('active');
+
+            progressInterval = setInterval(() => {
+                progress += 2;
+                if (progress > 90) progress = 90;
+
+                document.getElementById('progressFill').style.width = progress + '%';
+
+                if (progress >= 20 && currentStep < 1) {
+                    steps.forEach(s => document.getElementById(s).classList.remove('active'));
+                    document.getElementById('step2').classList.add('active');
+                    currentStep = 1;
+                } else if (progress >= 40 && currentStep < 2) {
+                    steps.forEach(s => document.getElementById(s).classList.remove('active'));
+                    document.getElementById('step3').classList.add('active');
+                    currentStep = 2;
+                } else if (progress >= 60 && currentStep < 3) {
+                    steps.forEach(s => document.getElementById(s).classList.remove('active'));
+                    document.getElementById('step4').classList.add('active');
+                    currentStep = 3;
+                } else if (progress >= 80 && currentStep < 4) {
+                    steps.forEach(s => document.getElementById(s).classList.remove('active'));
+                    document.getElementById('step5').classList.add('active');
+                    currentStep = 4;
+                }
+            }, 100);
+        }
+
+        function finishLoading() {
+            clearInterval(progressInterval);
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('step5').classList.add('active');
+
+            setTimeout(() => {
+                displayResults();
+                nextPage();
+            }, 1000);
+        }
+
+        function showLoadingError(message) {
+            clearInterval(progressInterval);
+            document.querySelector('.loading-text').textContent = 'Connection Error';
+            document.querySelector('.loading-spinner').style.display = 'none';
+            document.querySelector('.loading-steps').innerHTML = `
+                <div class="error-message" style="display: block;">
+                    <strong>Error:</strong> ${message}<br>
+                    Make sure the API server is running on http://127.0.0.1:8000
+                    <br><br>
+                    <button class="btn" onclick="goToPage(2)">Try Again</button>
+                </div>
+            `;
+        }
+
+        function displayResults() {
+            const container = document.getElementById('resultsContainer');
+
+            if (!apiResults || !apiResults.election_results) {
+                container.innerHTML = `
+                    <div class="result-card">
+                        <h3>❌ No Results Available</h3>
+                        <p>The simulation didn't return proper results. Please try again.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            function getPoliticalPositionIcon(position) {
+                const positionMap = {
+                    'Far Left': 'Far Left',
+                    'Left': 'Left',
+                    'Center': 'Center',
+                    'Right': 'Right',
+                    'Far Right': 'Far Right'
+                };
+                return positionMap[position] || 'Unknown';
+            }
+
+            const candidates = apiResults.election_results.map((candidate, index) => {
+                const medals = ['🥇', '🥈', '🥉'];
+                const medal = medals[index] || `${index + 1}️⃣`;
+                const itemClass = index === 0 ? 'winner' : '';
+
+                return `
+                    <div class="candidate-item ${itemClass}" style="padding: 1rem; margin: 0.5rem;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; margin-bottom: 0.8rem;">
+                                <span style="font-size: 1.5rem; margin-right: 1rem;">${medal}</span>
+                                <div>
+                                    <h3 style="margin: 0; color: #ffffff; font-size: 1.1rem;">
+                                        ${candidate.name || `Candidate ${index + 1}`}
+                                    </h3>
+                                    <p style="margin: 0.2rem 0; opacity: 0.8; font-size: 0.9rem;">
+                                        ${candidate.party || 'Independent Party'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.5rem;">
+                                <div style="background: rgba(255,255,255,0.08); padding: 0.4rem; border-radius: 6px; text-align: center;">
+                                    <div style="font-weight: 600; font-size: 0.8rem; color: #ffffff;">
+                                        ${getPoliticalPositionIcon(candidate.political_position)}
+                                    </div>
+                                    <div style="opacity: 0.7; font-size: 0.7rem; color: #ffffff;">Political</div>
+                                </div>
+
+                                ${candidate.age ? `
+                                <div style="background: rgba(255,255,255,0.08); padding: 0.4rem; border-radius: 6px; text-align: center;">
+                                    <div style="font-weight: 600; font-size: 0.8rem; color: #ffffff;">
+                                        ${candidate.age}
+                                    </div>
+                                    <div style="opacity: 0.7; font-size: 0.7rem; color: #ffffff;">Age</div>
+                                </div>
+                                ` : ''}
+
+                                ${candidate.gender ? `
+                                <div style="background: rgba(255,255,255,0.08); padding: 0.4rem; border-radius: 6px; text-align: center;">
+                                    <div style="font-weight: 600; font-size: 0.8rem; color: #ffffff;">
+                                        ${candidate.gender}
+                                    </div>
+                                    <div style="opacity: 0.7; font-size: 0.7rem; color: #ffffff;">Gender</div>
+                                </div>
+                                ` : ''}
+
+                                ${candidate.experience !== undefined ? `
+                                <div style="background: rgba(255,255,255,0.08); padding: 0.4rem; border-radius: 6px; text-align: center;">
+                                    <div style="font-weight: 600; font-size: 0.8rem; color: #ffffff;">
+                                        ${candidate.experience}y
+                                    </div>
+                                    <div style="opacity: 0.7; font-size: 0.7rem; color: #ffffff;">Experience</div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <div style="text-align: right; margin-left: 1rem; min-width: 100px;">
+                            <div style="background: linear-gradient(45deg, #667eea, #764ba2); padding: 0.8rem; border-radius: 10px; margin-bottom: 0.5rem;">
+                                <div style="color: white; font-size: 1.2rem; font-weight: 700;">${candidate.total_score}</div>
+                                <div style="color: rgba(255,255,255,0.9); font-size: 0.75rem;">Total Points</div>
+                            </div>
+                            <div style="font-size: 0.8rem; opacity: 0.8; text-align: center; color: #ffffff;">
+                                <div style="margin-bottom: 0.2rem;"><strong>${candidate.votes}</strong> votes</div>
+                                <div>Avg: <strong>${candidate.average_score}</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="result-card">
+                    <h3 style="color: #ffffff; margin-bottom: 1.5rem;">Election Results</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1rem;">
+                        ${candidates}
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <h3 style="color: #ffffff; margin-bottom: 1rem;">Blockchain Performance Metrics</h3>
+
+                    <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 3px solid #667eea;">
+                        <h4 style="color: #ffffff; margin-bottom: 0.8rem; font-size: 1rem;">Simulation Parameters</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.8rem; font-size: 0.85rem; color: #ffffff;">
+                            <div><strong>Voters:</strong> ${(() => {
+                                const formData = JSON.parse(sessionStorage.getItem('lastFormData') || '{}');
+                                return formData.number_of_voters || 'N/A';
+                            })()}</div>
+                            <div><strong>Candidates:</strong> ${(() => {
+                                const formData = JSON.parse(sessionStorage.getItem('lastFormData') || '{}');
+                                return formData.number_of_candidates || 'N/A';
+                            })()}</div>
+                            <div><strong>Districts:</strong> ${(() => {
+                                const formData = JSON.parse(sessionStorage.getItem('lastFormData') || '{}');
+                                return formData.number_of_districts || 'N/A';
+                            })()}</div>
+                            <div><strong>Score Range:</strong> ${(() => {
+                                const formData = JSON.parse(sessionStorage.getItem('lastFormData') || '{}');
+                                return `${formData.score_range_min || 0}-${formData.score_range_max || 10}`;
+                            })()}</div>
+                        </div>
+                    </div>
+                    ${apiResults.metrics ? `
+                        <div style="display: flex; gap: 2rem; justify-content: center;">
+                            <div style="background: rgba(76, 175, 80, 0.1); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #4CAF50; flex: 1; max-width: 280px;">
+                                <div style="text-align: center; margin-bottom: 1rem;">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Voting Duration</div>
+                                    <div style="font-size: 1.6rem; font-weight: 700; color: #ffffff;">${apiResults.metrics.voting_duration_secs}s</div>
+                                </div>
+                                <div style="text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Time per Voter</div>
+                                    <div style="font-size: 1.4rem; font-weight: 600; color: #ffffff;">${(() => {
+                                        const numVoters = apiResults.metrics.total_voters_registered || apiResults.number_of_voters || 1;
+                                        const timePerVoter = apiResults.metrics.voting_duration_secs / numVoters;
+                                        return timePerVoter.toFixed(3);
+                                    })()}s</div>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(255, 152, 0, 0.1); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #FF9800; flex: 1; max-width: 280px;">
+                                <div style="text-align: center; margin-bottom: 1rem;">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Total Gas Used</div>
+                                    <div style="font-size: 1.6rem; font-weight: 700; color: #ffffff;">${apiResults.metrics.total_gas_used?.toLocaleString() || 'N/A'}</div>
+                                </div>
+                                <div style="text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Gas per Voter</div>
+                                    <div style="font-size: 1.4rem; font-weight: 600; color: #ffffff;">${apiResults.metrics.gas_per_voter?.toLocaleString() || 'N/A'}</div>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(103, 58, 183, 0.1); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #673AB7; flex: 1; max-width: 280px;">
+                                <div style="text-align: center; margin-bottom: 1rem;">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Time per District</div>
+                                    <div style="font-size: 1.6rem; font-weight: 700; color: #ffffff;">${(() => {
+                                        const totalDistricts = apiResults.metrics.total_districts || 1;
+                                        const timePerDistrict = apiResults.metrics.voting_duration_secs / totalDistricts;
+                                        return timePerDistrict.toFixed(3);
+                                    })()}s</div>
+                                </div>
+                                <div style="text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem; color: #ffffff;">Gas per District</div>
+                                    <div style="font-size: 1.4rem; font-weight: 600; color: #ffffff;">${(() => {
+                                        const totalDistricts = apiResults.metrics.total_districts || 1;
+                                        const gasPerDistrict = apiResults.metrics.total_gas_used / totalDistricts;
+                                        return gasPerDistrict ? gasPerDistrict.toLocaleString() : 'N/A';
+                                    })()}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : '<p style="opacity: 0.9; color: #ffffff;">No performance metrics available</p>'}
+                </div>
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAllStrategies();
+        });
+    </script>
+</body>
+</html>
